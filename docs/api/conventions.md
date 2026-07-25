@@ -63,6 +63,10 @@ Refresh tokens rotate on every refresh. Reusing a token that was already rotated
 or revoked revokes the entire refresh-token family. Password changes bump
 `user.token_version`, invalidating older access tokens.
 
+Registration performs screening through the configured screening port before
+returning tokens. The current implementation is `AlwaysClearScreening` and always
+persists a clear result.
+
 ## Rate Limits
 
 Rate limits use Redis fixed windows:

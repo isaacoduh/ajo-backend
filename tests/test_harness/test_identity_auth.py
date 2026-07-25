@@ -42,6 +42,20 @@ class FakeIdentityRepo:
         self.user = user
         self.tokens_by_hash: dict[str, StoredRefreshToken] = {}
         self.revoked_families: list[UUID] = []
+        self.created_user: User | None = None
+
+    async def create_user(self, *, email: str, password_hash: str) -> User:
+        user = User(
+            id=uuid4(),
+            email=email,
+            password_hash=password_hash,
+            token_version=1,
+            created_at=utc_now(),
+            updated_at=utc_now(),
+        )
+        self.created_user = user
+        self.user = user
+        return user
 
     async def get_user_by_id(self, user_id: UUID) -> User | None:
         if user_id == self.user.id:
@@ -86,6 +100,22 @@ class FakeIdentityRepo:
         for token in self.tokens_by_hash.values():
             if token.family_id == family_id:
                 token.revoked_at = revoked_at
+
+
+class FakeScreeningService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def screen_person(
+        self,
+        *,
+        user_id: UUID,
+        name: str,
+        dob: object | None,
+        country: str,
+    ) -> list[object]:
+        self.calls.append({"user_id": user_id, "name": name, "dob": dob, "country": country})
+        return []
 
 
 def make_user() -> User:
@@ -160,3 +190,23 @@ async def test_refresh_reuse_revokes_family(monkeypatch: pytest.MonkeyPatch) -> 
         await service.refresh(refresh_token=token_pair.refresh_token)
 
     assert old_family in repo.revoked_families
+
+
+@pytest.mark.asyncio
+async def test_register_calls_screening(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_required_env(monkeypatch)
+    repo = FakeIdentityRepo(make_user())
+    screening = FakeScreeningService()
+    service = IdentityService(repo, screening)  # type: ignore[arg-type]
+
+    token_pair = await service.register(email="new@example.com", password="long-enough-password")
+
+    assert token_pair.user.email == "new@example.com"
+    assert screening.calls == [
+        {
+            "user_id": token_pair.user.id,
+            "name": "new@example.com",
+            "dob": None,
+            "country": "GB",
+        }
+    ]

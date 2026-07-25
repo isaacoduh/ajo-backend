@@ -94,6 +94,21 @@ values; only peppered SHA-256 HMAC hashes are stored.
 `Member` is intentionally left for the later domain/onboarding model that
 participates in circles, screening, and money flows.
 
+Registration calls `ScreeningService` after the `User` row is created and before
+tokens are issued. In this pass the default screening port is
+`AlwaysClearScreening`; OpenSanctions arrives later behind the same port.
+
+## Screening and Notifications
+
+`app/modules/screening` defines `ScreeningPort.screen_person(name, dob, country)`
+and persists every result in `screening_result`. Results are `clear` when no hits
+are returned and `review` when the provider returns one or more hits.
+
+`app/modules/notifications` defines `EmailPort`. Current implementations are:
+
+- `ConsoleEmail` for structured-log local output.
+- `SmtpEmail` for Mailpit/local SMTP delivery.
+
 Refresh rotation is single-use. If an already-used or revoked refresh token is
 presented, the service revokes the whole token family to contain replay.
 
