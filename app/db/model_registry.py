@@ -9,5 +9,6 @@ def import_all_models() -> None:
     """
     from app.modules.identity import models as identity_models
     from app.modules.ledger import models as ledger_models
+    from app.workers import models as worker_models
 
-    _ = identity_models, ledger_models
+    _ = identity_models, ledger_models, worker_models

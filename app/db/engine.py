@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from functools import lru_cache
 
+from arq.connections import create_pool
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -11,6 +12,12 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import Settings, get_settings
+from app.workers.jobs import (
+    discard_after_commit_jobs,
+    flush_after_commit_jobs,
+    has_after_commit_jobs,
+)
+from app.workers.main import redis_settings_from_url
 
 
 def create_engine(settings: Settings | None = None) -> AsyncEngine:
@@ -47,6 +54,13 @@ async def session_scope() -> AsyncIterator[AsyncSession]:
         try:
             yield session
             await session.commit()
+            if has_after_commit_jobs(session):
+                redis = await create_pool(redis_settings_from_url(get_settings().redis_url))
+                try:
+                    await flush_after_commit_jobs(session, redis)
+                finally:
+                    await redis.close()
         except Exception:
             await session.rollback()
+            await discard_after_commit_jobs(session)
             raise

@@ -100,11 +100,18 @@ presented, the service revokes the whole token family to contain replay.
 ## Jobs and Transactions
 
 Jobs are enqueued after the database transaction commits. Services collect
-pending jobs in transaction context; the session commit hook flushes them to ARQ
-only after durable state exists. This prevents workers from observing events for
-rows that later roll back.
+pending jobs with `enqueue_after_commit(session, ...)`; `session_scope()` flushes
+them to ARQ only after `commit()` succeeds. If the transaction rolls back, queued
+jobs are discarded. This prevents workers from observing events for rows that
+later roll back.
 
-The implementation lands in the jobs pass.
+`app/workers/main.py` owns ARQ worker settings, startup/shutdown hooks, job
+logging hooks, and cron registration. `heartbeat` runs as the base cron job.
+`max_tries` is 5. `retry_later(job_try)` provides exponential backoff capped at
+60 seconds for jobs that need explicit deferral.
+
+Terminal job failures are persisted to `failed_jobs` through the worker
+`on_job_end` hook.
 
 ## Database and Migrations
 
