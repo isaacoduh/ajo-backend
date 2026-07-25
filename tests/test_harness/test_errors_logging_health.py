@@ -12,8 +12,8 @@ def set_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENV", "test")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only")
-    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
     get_settings.cache_clear()
 
 

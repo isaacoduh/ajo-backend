@@ -25,8 +25,8 @@ def test_settings_reject_live_payment_secret(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("ENV", "local")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only")
-    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
     monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_live_123")
 
     with pytest.raises(ValidationError, match="live-mode payment credentials"):
@@ -37,8 +37,8 @@ def test_settings_startup_summary_is_redacted(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("ENV", "local")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
     monkeypatch.setenv("REDIS_URL", "redis://:redis-password@localhost:6379/0")
-    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only")
-    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
 
     summary = Settings().redacted_startup_summary()
 

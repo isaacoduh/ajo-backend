@@ -7,7 +7,7 @@ structured so future modules can be added without crossing ownership boundaries.
 
 ```mermaid
 flowchart LR
-  Member["Member / Demo User"] --> API["FastAPI API"]
+  User["User / Demo Actor"] --> API["FastAPI API"]
   API --> DB["PostgreSQL 16"]
   API --> Redis["Redis 7"]
   API --> Worker["ARQ Worker"]
@@ -22,7 +22,7 @@ flowchart LR
 
 - `app/core` - config, errors, logging, security, idempotency, pagination, deps.
 - `app/db` - engine/session/base plus database-level ledger primitives.
-- `app/modules/identity` - implemented in this pass; member onboarding and auth.
+- `app/modules/identity` - implemented in this pass; user authentication.
 - `app/modules/circles` - skeleton only; copyable module template.
 - `app/modules/ledger` - service boundary over `app/db/ledger.py`.
 - `app/modules/payments` - rail port, `FakeRail`, webhook and reconciliation core.
@@ -71,6 +71,19 @@ in logs only.
 `/healthz` is a cheap process liveness check. `/readyz` checks Postgres and Redis
 with one-second timeouts and returns `503 application/problem+json` when any
 dependency is unavailable. Docker Compose and Railway should use `/readyz`.
+
+## Identity and Auth
+
+`app/modules/identity` owns the `User` authentication principal, password hashes,
+access-token validation, and refresh-token families. Access JWTs expire after 15
+minutes and carry `user_id` plus `token_version`. Refresh tokens are opaque
+values; only peppered SHA-256 HMAC hashes are stored.
+
+`Member` is intentionally left for the later domain/onboarding model that
+participates in circles, screening, and money flows.
+
+Refresh rotation is single-use. If an already-used or revoked refresh token is
+presented, the service revokes the whole token family to contain replay.
 
 ## Jobs and Transactions
 

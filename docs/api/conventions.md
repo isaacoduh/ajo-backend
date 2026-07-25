@@ -42,3 +42,21 @@ different pattern for a specific endpoint.
 Clients may send `X-Request-ID`. If omitted, the API generates one. The same
 value is returned in the response header, included as `trace_id` in problem
 responses, and bound into structured request logs.
+
+## Authentication
+
+Identity routes live under `/auth`:
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+- `POST /auth/logout-all`
+
+Access tokens are JWT bearer tokens with a 15-minute lifetime. Refresh tokens are
+opaque 256-bit random values, stored only as HMAC-SHA-256 hashes with the
+deployment pepper.
+
+Refresh tokens rotate on every refresh. Reusing a token that was already rotated
+or revoked revokes the entire refresh-token family. Password changes bump
+`user.token_version`, invalidating older access tokens.

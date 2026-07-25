@@ -11,6 +11,7 @@ from app.core.errors import PROBLEM_JSON, problem_response, register_error_handl
 from app.core.health import readiness_status
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.modules.identity.router import router as identity_router
 
 
 @asynccontextmanager
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     application = FastAPI(title=settings.app_name, lifespan=lifespan)
     application.add_middleware(RequestContextMiddleware)
     register_error_handlers(application)
+    application.include_router(identity_router)
 
     @application.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:

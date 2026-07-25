@@ -61,8 +61,8 @@ class Settings(BaseSettings):
 
     jwt_issuer: str = Field(default="ajo.local", alias="JWT_ISSUER")
     jwt_audience: str = Field(default="ajo.api", alias="JWT_AUDIENCE")
-    jwt_access_secret: SecretStr = Field(alias="JWT_ACCESS_SECRET")
-    refresh_token_pepper: SecretStr = Field(alias="REFRESH_TOKEN_PEPPER")
+    jwt_access_secret: SecretStr = Field(alias="JWT_ACCESS_SECRET", min_length=32)
+    refresh_token_pepper: SecretStr = Field(alias="REFRESH_TOKEN_PEPPER", min_length=32)
 
     argon2_time_cost: int = Field(default=2, alias="ARGON2_TIME_COST", ge=1)
     argon2_memory_cost: int = Field(default=65536, alias="ARGON2_MEMORY_COST", ge=8192)
