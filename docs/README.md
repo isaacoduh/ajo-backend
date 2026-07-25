@@ -35,3 +35,6 @@ material for the build:
 - `ajo-wireframes.pdf`
 - `ajo-wireframes-v2.pdf`
 
+## Current Evidence
+
+- `pitch/harness-summary.md` maps each harness to its tests and documentation.

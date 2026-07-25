@@ -1,7 +1,7 @@
-.PHONY: help lint typecheck test test-containers import-lint money-check openapi migration migrate migration-drift up seed stripe-listen
+.PHONY: help lint typecheck test test-containers import-lint money-check openapi migration migrate migration-drift up seed demo-reset stripe-listen
 
 help:
-	@echo "Available targets: lint typecheck test test-containers import-lint money-check openapi migration migrate migration-drift up seed stripe-listen"
+	@echo "Available targets: lint typecheck test test-containers import-lint money-check openapi migration migrate migration-drift up seed demo-reset stripe-listen"
 
 lint:
 	uv run ruff check app tests
@@ -38,6 +38,9 @@ up:
 
 seed:
 	@echo "Seed command will be implemented with the data model."
+
+demo-reset:
+	uv run python -m app.tools.demo_reset
 
 stripe-listen:
 	@echo "Stripe listener placeholder; real rail integration lands in a later pass."
