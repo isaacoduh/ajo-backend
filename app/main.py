@@ -12,6 +12,7 @@ from app.core.health import readiness_status
 from app.core.idempotency import IdempotencyMiddleware
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.modules.circles.router import router as circles_router
 from app.modules.identity.router import router as identity_router
 
 
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     application.add_middleware(IdempotencyMiddleware)
     application.add_middleware(RequestContextMiddleware)
     register_error_handlers(application)
+    application.include_router(circles_router)
     application.include_router(identity_router)
 
     @application.get("/healthz", tags=["health"])
