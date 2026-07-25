@@ -19,8 +19,7 @@ from app.modules.identity.schemas import (
     UserResponse,
 )
 from app.modules.identity.service import IdentityService, TokenPair
-from app.modules.screening.repo import ScreeningRepo
-from app.modules.screening.service import ScreeningService
+from app.modules.screening.service import get_screening_service
 
 router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(rate_limit_auth)])
 
@@ -30,7 +29,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 def get_identity_service(session: SessionDep) -> IdentityService:
     return IdentityService(
         IdentityRepo(session),
-        ScreeningService(ScreeningRepo(session)),
+        get_screening_service(session),
     )
 
 

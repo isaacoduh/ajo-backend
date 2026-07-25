@@ -3,6 +3,8 @@
 from datetime import date
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.modules.screening.fake import AlwaysClearScreening
 from app.modules.screening.port import ScreeningPort
 from app.modules.screening.repo import ScreeningRepo
@@ -36,3 +38,6 @@ class ScreeningService:
         )
         return hits
 
+
+def get_screening_service(session: AsyncSession) -> ScreeningService:
+    return ScreeningService(ScreeningRepo(session))

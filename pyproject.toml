@@ -95,25 +95,234 @@ filterwarnings = [
 root_package = "app"
 
 [[tool.importlinter.contracts]]
-name = "Module boundaries go through services"
+name = "Identity only crosses modules through services"
 type = "forbidden"
 source_modules = [
     "app.modules.identity",
+]
+forbidden_modules = [
+    "app.modules.circles.repo",
+    "app.modules.circles.models",
+    "app.modules.circles.router",
+    "app.modules.circles.schemas",
+    "app.modules.ledger.repo",
+    "app.modules.ledger.models",
+    "app.modules.ledger.router",
+    "app.modules.ledger.schemas",
+    "app.modules.payments.fake_rail",
+    "app.modules.payments.models",
+    "app.modules.payments.port",
+    "app.modules.payments.registry",
+    "app.modules.payments.repo",
+    "app.modules.payments.router",
+    "app.modules.payments.schemas",
+    "app.modules.payments.types",
+    "app.modules.screening.fake",
+    "app.modules.screening.models",
+    "app.modules.screening.port",
+    "app.modules.screening.repo",
+    "app.modules.screening.router",
+    "app.modules.screening.schemas",
+    "app.modules.screening.types",
+    "app.modules.notifications.console",
+    "app.modules.notifications.models",
+    "app.modules.notifications.port",
+    "app.modules.notifications.repo",
+    "app.modules.notifications.router",
+    "app.modules.notifications.schemas",
+    "app.modules.notifications.smtp",
+]
+ignore_imports = [
+    "app.modules.identity.router -> app.modules.screening.service",
+    "app.modules.identity.service -> app.modules.screening.service",
+]
+
+[[tool.importlinter.contracts]]
+name = "Circles only crosses modules through services"
+type = "forbidden"
+source_modules = [
     "app.modules.circles",
+]
+forbidden_modules = [
+    "app.modules.identity.deps",
+    "app.modules.identity.models",
+    "app.modules.identity.repo",
+    "app.modules.identity.router",
+    "app.modules.identity.schemas",
+    "app.modules.ledger.models",
+    "app.modules.ledger.repo",
+    "app.modules.ledger.router",
+    "app.modules.ledger.schemas",
+    "app.modules.payments.fake_rail",
+    "app.modules.payments.models",
+    "app.modules.payments.port",
+    "app.modules.payments.registry",
+    "app.modules.payments.repo",
+    "app.modules.payments.router",
+    "app.modules.payments.schemas",
+    "app.modules.payments.types",
+    "app.modules.screening.fake",
+    "app.modules.screening.models",
+    "app.modules.screening.port",
+    "app.modules.screening.repo",
+    "app.modules.screening.router",
+    "app.modules.screening.schemas",
+    "app.modules.screening.types",
+    "app.modules.notifications.console",
+    "app.modules.notifications.models",
+    "app.modules.notifications.port",
+    "app.modules.notifications.repo",
+    "app.modules.notifications.router",
+    "app.modules.notifications.schemas",
+    "app.modules.notifications.smtp",
+]
+
+[[tool.importlinter.contracts]]
+name = "Ledger only crosses modules through services"
+type = "forbidden"
+source_modules = [
     "app.modules.ledger",
+]
+forbidden_modules = [
+    "app.modules.identity.deps",
+    "app.modules.identity.models",
+    "app.modules.identity.repo",
+    "app.modules.identity.router",
+    "app.modules.identity.schemas",
+    "app.modules.circles.models",
+    "app.modules.circles.repo",
+    "app.modules.circles.router",
+    "app.modules.circles.schemas",
+    "app.modules.payments.fake_rail",
+    "app.modules.payments.models",
+    "app.modules.payments.port",
+    "app.modules.payments.registry",
+    "app.modules.payments.repo",
+    "app.modules.payments.router",
+    "app.modules.payments.schemas",
+    "app.modules.payments.types",
+    "app.modules.screening.fake",
+    "app.modules.screening.models",
+    "app.modules.screening.port",
+    "app.modules.screening.repo",
+    "app.modules.screening.router",
+    "app.modules.screening.schemas",
+    "app.modules.screening.types",
+    "app.modules.notifications.console",
+    "app.modules.notifications.models",
+    "app.modules.notifications.port",
+    "app.modules.notifications.repo",
+    "app.modules.notifications.router",
+    "app.modules.notifications.schemas",
+    "app.modules.notifications.smtp",
+]
+
+[[tool.importlinter.contracts]]
+name = "Payments only crosses modules through services"
+type = "forbidden"
+source_modules = [
     "app.modules.payments",
+]
+forbidden_modules = [
+    "app.modules.identity.deps",
+    "app.modules.identity.models",
+    "app.modules.identity.repo",
+    "app.modules.identity.router",
+    "app.modules.identity.schemas",
+    "app.modules.circles.models",
+    "app.modules.circles.repo",
+    "app.modules.circles.router",
+    "app.modules.circles.schemas",
+    "app.modules.ledger.models",
+    "app.modules.ledger.repo",
+    "app.modules.ledger.router",
+    "app.modules.ledger.schemas",
+    "app.modules.screening.fake",
+    "app.modules.screening.models",
+    "app.modules.screening.port",
+    "app.modules.screening.repo",
+    "app.modules.screening.router",
+    "app.modules.screening.schemas",
+    "app.modules.screening.types",
+    "app.modules.notifications.console",
+    "app.modules.notifications.models",
+    "app.modules.notifications.port",
+    "app.modules.notifications.repo",
+    "app.modules.notifications.router",
+    "app.modules.notifications.schemas",
+    "app.modules.notifications.smtp",
+]
+
+[[tool.importlinter.contracts]]
+name = "Screening only crosses modules through services"
+type = "forbidden"
+source_modules = [
     "app.modules.screening",
+]
+forbidden_modules = [
+    "app.modules.identity.deps",
+    "app.modules.identity.models",
+    "app.modules.identity.repo",
+    "app.modules.identity.router",
+    "app.modules.identity.schemas",
+    "app.modules.circles.models",
+    "app.modules.circles.repo",
+    "app.modules.circles.router",
+    "app.modules.circles.schemas",
+    "app.modules.ledger.models",
+    "app.modules.ledger.repo",
+    "app.modules.ledger.router",
+    "app.modules.ledger.schemas",
+    "app.modules.payments.fake_rail",
+    "app.modules.payments.models",
+    "app.modules.payments.port",
+    "app.modules.payments.registry",
+    "app.modules.payments.repo",
+    "app.modules.payments.router",
+    "app.modules.payments.schemas",
+    "app.modules.payments.types",
+    "app.modules.notifications.console",
+    "app.modules.notifications.models",
+    "app.modules.notifications.port",
+    "app.modules.notifications.repo",
+    "app.modules.notifications.router",
+    "app.modules.notifications.schemas",
+    "app.modules.notifications.smtp",
+]
+
+[[tool.importlinter.contracts]]
+name = "Notifications only crosses modules through services"
+type = "forbidden"
+source_modules = [
     "app.modules.notifications",
 ]
 forbidden_modules = [
-    "app.modules.*.repo",
-    "app.modules.*.models",
+    "app.modules.identity.deps",
+    "app.modules.identity.models",
+    "app.modules.identity.repo",
+    "app.modules.identity.router",
+    "app.modules.identity.schemas",
+    "app.modules.circles.models",
+    "app.modules.circles.repo",
+    "app.modules.circles.router",
+    "app.modules.circles.schemas",
+    "app.modules.ledger.models",
+    "app.modules.ledger.repo",
+    "app.modules.ledger.router",
+    "app.modules.ledger.schemas",
+    "app.modules.payments.fake_rail",
+    "app.modules.payments.models",
+    "app.modules.payments.port",
+    "app.modules.payments.registry",
+    "app.modules.payments.repo",
+    "app.modules.payments.router",
+    "app.modules.payments.schemas",
+    "app.modules.payments.types",
+    "app.modules.screening.fake",
+    "app.modules.screening.models",
+    "app.modules.screening.port",
+    "app.modules.screening.repo",
+    "app.modules.screening.router",
+    "app.modules.screening.schemas",
+    "app.modules.screening.types",
 ]
-ignore_imports = [
-    "app.modules.*.service -> app.modules.*.repo",
-    "app.modules.*.service -> app.modules.*.models",
-    "app.modules.*.repo -> app.modules.*.models",
-    "app.modules.*.router -> app.modules.*.schemas",
-    "app.modules.*.router -> app.modules.*.service",
-]
-

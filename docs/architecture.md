@@ -36,6 +36,12 @@ Routers call services. Services call repos and other modules' services. Repos ow
 database persistence for their module. Cross-module imports bypassing another
 module's `service.py` are forbidden and enforced with import-linter.
 
+`pyproject.toml` defines one import-linter contract per business module. The
+contracts forbid direct imports of another module's repos, models, routers,
+schemas, ports, provider fakes, and types. Explicit exceptions are limited to
+accepted service-boundary calls, such as identity invoking screening through
+`app.modules.screening.service`.
+
 ## Request Flow
 
 ```mermaid
