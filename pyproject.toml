@@ -1,0 +1,119 @@
+[project]
+name = "ajo-backend"
+version = "0.1.0"
+description = "Backend chassis for Àjọ, a digital esusu showcase platform."
+readme = "docs/README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.13",
+    "argon2-cffi>=23.1",
+    "arq>=0.26",
+    "asyncpg>=0.29",
+    "fastapi>=0.111",
+    "greenlet>=3.0",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyjwt>=2.8",
+    "redis>=5.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "structlog>=24.1",
+    "uvicorn[standard]>=0.30",
+]
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.100",
+    "import-linter>=2.0",
+    "mypy>=1.10",
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+    "testcontainers[postgres,redis]>=4.7",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "A",
+    "ASYNC",
+    "B",
+    "C4",
+    "E",
+    "F",
+    "I",
+    "N",
+    "PT",
+    "RET",
+    "RUF",
+    "SIM",
+    "UP",
+    "W",
+]
+ignore = [
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+plugins = [
+    "pydantic.mypy",
+    "sqlalchemy.ext.mypy.plugin",
+]
+files = [
+    "app/core",
+    "app/db",
+    "app/modules/ledger",
+    "app/modules/payments",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = [
+    "error",
+]
+
+[tool.importlinter]
+root_package = "app"
+
+[[tool.importlinter.contracts]]
+name = "Module boundaries go through services"
+type = "forbidden"
+source_modules = [
+    "app.modules.identity",
+    "app.modules.circles",
+    "app.modules.ledger",
+    "app.modules.payments",
+    "app.modules.screening",
+    "app.modules.notifications",
+]
+forbidden_modules = [
+    "app.modules.*.repo",
+    "app.modules.*.models",
+]
+ignore_imports = [
+    "app.modules.*.service -> app.modules.*.repo",
+    "app.modules.*.service -> app.modules.*.models",
+    "app.modules.*.repo -> app.modules.*.models",
+    "app.modules.*.router -> app.modules.*.schemas",
+    "app.modules.*.router -> app.modules.*.service",
+]
+
