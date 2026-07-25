@@ -56,6 +56,22 @@ sequenceDiagram
   API-->>Client: JSON or problem+json
 ```
 
+## Errors and Request Logging
+
+`app/core/middleware.py` creates or accepts `X-Request-ID`, binds it into a
+context variable, returns it on the response, and emits one structured log event
+per request. `app/core/errors.py` translates application, HTTP, validation, and
+unhandled exceptions into RFC 9457 `application/problem+json` responses.
+
+Unhandled errors return opaque 500 responses with `trace_id`; stack details stay
+in logs only.
+
+## Health
+
+`/healthz` is a cheap process liveness check. `/readyz` checks Postgres and Redis
+with one-second timeouts and returns `503 application/problem+json` when any
+dependency is unavailable. Docker Compose and Railway should use `/readyz`.
+
 ## Jobs and Transactions
 
 Jobs are enqueued after the database transaction commits. Services collect
