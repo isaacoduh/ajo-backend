@@ -9,6 +9,17 @@ double-entry, integer minor units, GBP only.
 - `journal_entry` - immutable business event, idempotency key, hash-chain fields.
 - `posting` - immutable debit/credit lines linked to one journal entry.
 
+Implemented fields:
+
+- `ledger_account`: `id`, `code`, `name`, `account_type`, `currency`,
+  `balance_minor`, timestamps.
+- `journal_entry`: `id`, `idempotency_key`, `description`, `currency`,
+  `previous_hash`, `entry_hash`, optional `reversed_entry_id`, `created_at`.
+- `posting`: `id`, `journal_entry_id`, `account_id`, `side`, `amount_minor`,
+  `created_at`.
+
+The only sanctioned journal write path is `app/db/ledger.py::post_entry()`.
+
 ## Account Taxonomy
 
 Initial taxonomy:
@@ -19,7 +30,11 @@ Initial taxonomy:
 - Expense
 - Equity
 
-Concrete accounts are added by the ledger implementation pass.
+Balance semantics:
+
+- Asset and expense accounts are debit-normal.
+- Liability, income, and equity accounts are credit-normal.
+- `balance_minor` is stored in each account's normal-balance direction.
 
 ## Invariants
 
@@ -35,7 +50,23 @@ Concrete accounts are added by the ledger implementation pass.
 Each journal entry stores a SHA-256 hash over deterministic entry content and the
 previous journal hash. This provides tamper evidence and supports replay checks.
 
-The exact canonicalization format lands with `app/db/ledger.py`.
+Canonicalization is JSON with sorted keys and compact separators over:
+
+- `currency`
+- `description`
+- `idempotency_key`
+- sorted postings
+- `previous_hash`
+- `reversed_entry_id`
+
+`post_entry()` takes a Postgres advisory transaction lock before reading the
+latest hash, making the hash chain single-writer within a transaction.
+
+## Append-Only Posture
+
+The migration revokes `UPDATE` and `DELETE` on `journal_entry` and `posting` from
+`PUBLIC`, and from the local app role `ajo` when present. Corrections must be new
+reversing entries.
 
 ## Posting Recipes
 
@@ -75,3 +106,5 @@ Replay starts from genesis, applies postings in journal order, and compares the
 computed balances with materialized balances. Property tests generate valid
 batches and assert trial balance zero plus replay equality.
 
+`make money-check` rejects `float` and `Decimal` references in `app/db` and
+`app/modules/ledger`.

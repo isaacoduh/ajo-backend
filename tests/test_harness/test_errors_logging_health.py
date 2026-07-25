@@ -8,12 +8,37 @@ from app.core.health import DependencyStatus, ReadinessStatus, readiness_status
 from pydantic import BaseModel
 
 
+class InMemoryIdempotencyStore:
+    def __init__(self) -> None:
+        self.values: dict[str, str] = {}
+
+    async def get(self, key: str) -> str | None:
+        return self.values.get(key)
+
+    async def set(
+        self,
+        key: str,
+        value: str,
+        ex: int | None = None,
+        nx: bool = False,
+    ) -> bool:
+        _ = ex
+        if nx and key in self.values:
+            return False
+        self.values[key] = value
+        return True
+
+    async def delete(self, key: str) -> None:
+        self.values.pop(key, None)
+
+
 def set_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENV", "test")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
     monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
     monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
     monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
+    monkeypatch.setattr("app.core.idempotency.get_redis", lambda: InMemoryIdempotencyStore())
     get_settings.cache_clear()
 
 

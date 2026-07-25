@@ -1,7 +1,7 @@
-.PHONY: help lint typecheck test import-lint openapi migration migrate migration-drift up seed stripe-listen
+.PHONY: help lint typecheck test import-lint money-check openapi migration migrate migration-drift up seed stripe-listen
 
 help:
-	@echo "Available targets: lint typecheck test import-lint openapi migration migrate migration-drift up seed stripe-listen"
+	@echo "Available targets: lint typecheck test import-lint money-check openapi migration migrate migration-drift up seed stripe-listen"
 
 lint:
 	uv run ruff check app tests
@@ -14,6 +14,9 @@ test:
 
 import-lint:
 	uv run lint-imports
+
+money-check:
+	@if rg -n "\b(float|Decimal)\b" app/db app/modules/ledger; then exit 1; fi
 
 openapi:
 	uv run python -m app.tools.openapi
