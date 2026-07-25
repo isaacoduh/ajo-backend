@@ -13,6 +13,7 @@ RUN uv sync --no-dev
 
 COPY app ./app
 COPY alembic ./alembic
+COPY alembic.ini ./alembic.ini
 
 ENV PATH="/srv/app/.venv/bin:$PATH"
 

@@ -1,7 +1,7 @@
-.PHONY: help lint typecheck test import-lint openapi up seed stripe-listen
+.PHONY: help lint typecheck test import-lint openapi migration migrate migration-drift up seed stripe-listen
 
 help:
-	@echo "Available targets: lint typecheck test import-lint openapi up seed stripe-listen"
+	@echo "Available targets: lint typecheck test import-lint openapi migration migrate migration-drift up seed stripe-listen"
 
 lint:
 	uv run ruff check app tests
@@ -18,6 +18,15 @@ import-lint:
 openapi:
 	uv run python -m app.tools.openapi
 
+migration:
+	uv run alembic revision --autogenerate -m "$(message)"
+
+migrate:
+	uv run alembic upgrade head
+
+migration-drift:
+	uv run alembic check
+
 up:
 	docker compose up --build
 
@@ -26,4 +35,3 @@ seed:
 
 stripe-listen:
 	@echo "Stripe listener placeholder; real rail integration lands in a later pass."
-

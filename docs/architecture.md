@@ -65,3 +65,13 @@ rows that later roll back.
 
 The implementation lands in the jobs pass.
 
+## Database and Migrations
+
+SQLAlchemy 2.0 async is the application database API. `app/db/base.py` owns the
+declarative base and naming convention so Alembic autogenerate produces stable
+constraint names. `app/db/model_registry.py` is the single place future model
+modules are imported for metadata discovery.
+
+Alembic runs in async mode against `DATABASE_URL`, falling back to the local URL
+in `alembic.ini` when the environment variable is absent. Migration drift is
+checked with `make migration-drift`.
