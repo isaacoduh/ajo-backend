@@ -21,10 +21,19 @@ Services:
 make test
 ```
 
-The test harness uses testcontainers for Postgres and Redis.
+The default test target runs the fast harness and contract suite without starting
+Docker containers.
+
+Container-backed tests are opt-in:
+
+```bash
+make test-containers
+```
+
+The shared test harness provides Postgres and Redis testcontainers fixtures for
+tests marked `containers`.
 
 ## Notes
 
 The application must not be run with live payment credentials. Config rejects
 live-looking payment keys at startup.
-

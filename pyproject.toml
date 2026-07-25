@@ -90,6 +90,9 @@ testpaths = ["tests"]
 filterwarnings = [
     "error",
 ]
+markers = [
+    "containers: tests requiring Docker testcontainers",
+]
 
 [tool.importlinter]
 root_package = "app"
