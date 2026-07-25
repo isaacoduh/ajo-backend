@@ -26,12 +26,14 @@ class AppError(Exception):
         detail: str,
         type_: str = "about:blank",
         extra: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         self.status_code = status_code
         self.title = title
         self.detail = detail
         self.type = type_
         self.extra = dict(extra or {})
+        self.headers = dict(headers or {})
 
 
 def problem_response(
@@ -71,6 +73,7 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         detail=exc.detail,
         type_=exc.type,
         extra=exc.extra,
+        headers=exc.headers,
     )
 
 

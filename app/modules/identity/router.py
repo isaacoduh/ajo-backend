@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import USER_WRITE_RATE_LIMIT, enforce_rate_limit, rate_limit_auth
 from app.db.session import get_session
 from app.modules.identity.deps import get_current_user
 from app.modules.identity.models import User
@@ -19,7 +20,7 @@ from app.modules.identity.schemas import (
 )
 from app.modules.identity.service import IdentityService, TokenPair
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(rate_limit_auth)])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -65,6 +66,7 @@ async def logout_all(
     current_user: Annotated[User, Depends(get_current_user)],
     service: Annotated[IdentityService, Depends(get_identity_service)],
 ) -> None:
+    await enforce_rate_limit(identity=str(current_user.id), rate_limit=USER_WRITE_RATE_LIMIT)
     await service.logout_all(user_id=current_user.id)
 
 

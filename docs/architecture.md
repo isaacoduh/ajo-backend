@@ -66,6 +66,18 @@ unhandled exceptions into RFC 9457 `application/problem+json` responses.
 Unhandled errors return opaque 500 responses with `trace_id`; stack details stay
 in logs only.
 
+## Rate Limiting and Idempotency
+
+`app/core/rate_limit.py` implements Redis fixed-window limits. Auth routes are
+limited to 5 requests per minute per client IP; authenticated write flows use 60
+requests per minute per user. Redis failures fail open with loud structured
+logging because availability should not depend on a defensive throttle.
+
+`app/core/idempotency.py` requires `Idempotency-Key` on mutating methods. It
+checks for a stored response, acquires a Redis lock for in-flight keys, captures
+the first response, stores it for 48 hours, and replays subsequent responses from
+Redis. Concurrent duplicates return 409 while the first request is still running.
+
 ## Health
 
 `/healthz` is a cheap process liveness check. `/readyz` checks Postgres and Redis

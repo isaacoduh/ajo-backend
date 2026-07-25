@@ -27,6 +27,8 @@ Mutating routes require `Idempotency-Key`.
 - First response is stored in Redis for 48 hours.
 - Replays return byte-identical status, headers, and body.
 - Concurrent duplicates return 409.
+- Missing keys return `400 application/problem+json`.
+- The in-flight lock expires after 60 seconds if a worker dies mid-request.
 
 ## Pagination
 
@@ -60,3 +62,13 @@ deployment pepper.
 Refresh tokens rotate on every refresh. Reusing a token that was already rotated
 or revoked revokes the entire refresh-token family. Password changes bump
 `user.token_version`, invalidating older access tokens.
+
+## Rate Limits
+
+Rate limits use Redis fixed windows:
+
+- Auth routes: 5 requests per minute per client IP.
+- Authenticated writes: 60 requests per minute per user.
+
+Exceeded limits return `429 application/problem+json` with `Retry-After`.
+If Redis is unavailable, rate limiting fails open and emits an ERROR log.

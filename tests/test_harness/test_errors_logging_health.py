@@ -51,7 +51,11 @@ async def test_validation_errors_are_problem_json(monkeypatch: pytest.MonkeyPatc
     transport = httpx.ASGITransport(app=app)
 
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post("/validation-target", json={"amount": "not-an-int"})
+        response = await client.post(
+            "/validation-target",
+            json={"amount": "not-an-int"},
+            headers={"Idempotency-Key": "validation-key"},
+        )
 
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
