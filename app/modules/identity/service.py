@@ -19,6 +19,7 @@ from app.modules.identity.models import User
 from app.modules.identity.repo import IdentityRepo
 from app.modules.members.service import MembersService
 from app.modules.screening.service import ScreeningService
+from app.modules.wallets.service import WalletService
 
 
 @dataclass(frozen=True)
@@ -34,10 +35,12 @@ class IdentityService:
         repo: IdentityRepo,
         screening_service: ScreeningService | None = None,
         members_service: MembersService | None = None,
+        wallet_service: WalletService | None = None,
     ) -> None:
         self.repo = repo
         self.screening_service = screening_service
         self.members_service = members_service
+        self.wallet_service = wallet_service
 
     async def register(self, *, email: str, password: str) -> TokenPair:
         password_hash = hash_password(password)
@@ -55,12 +58,14 @@ class IdentityService:
             )
             screening_state = "review" if hits else "clear"
         if self.members_service is not None:
-            await self.members_service.ensure_for_user(
+            member = await self.members_service.ensure_for_user(
                 user_id=user.id,
                 display_name=email,
                 country="GB",
                 screening_state=screening_state,
             )
+            if self.wallet_service is not None:
+                await self.wallet_service.ensure_for_member(member_id=member.id)
         return await self._issue_pair(user=user, family_id=uuid4())
 
     async def login(self, *, email: str, password: str) -> TokenPair:

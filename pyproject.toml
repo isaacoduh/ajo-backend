@@ -138,8 +138,10 @@ forbidden_modules = [
 ignore_imports = [
     "app.modules.identity.router -> app.modules.screening.service",
     "app.modules.identity.router -> app.modules.members.service",
+    "app.modules.identity.router -> app.modules.wallets.service",
     "app.modules.identity.service -> app.modules.screening.service",
     "app.modules.identity.service -> app.modules.members.service",
+    "app.modules.identity.service -> app.modules.wallets.service",
 ]
 
 [[tool.importlinter.contracts]]

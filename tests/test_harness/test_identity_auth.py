@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -121,6 +122,7 @@ class FakeScreeningService:
 class FakeMembersService:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
+        self.member_id = uuid4()
 
     async def ensure_for_user(
         self,
@@ -138,6 +140,15 @@ class FakeMembersService:
                 "screening_state": screening_state,
             }
         )
+        return SimpleNamespace(id=self.member_id)
+
+
+class FakeWalletService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def ensure_for_member(self, *, member_id: UUID) -> object:
+        self.calls.append({"member_id": member_id})
         return object()
 
 
@@ -253,3 +264,17 @@ async def test_register_ensures_clear_member_after_screening(monkeypatch: pytest
             "screening_state": "clear",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_register_provisions_wallet_for_member(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_required_env(monkeypatch)
+    repo = FakeIdentityRepo(make_user())
+    screening = FakeScreeningService()
+    members = FakeMembersService()
+    wallet = FakeWalletService()
+    service = IdentityService(repo, screening, members, wallet)  # type: ignore[arg-type]
+
+    await service.register(email="wallet@example.com", password="long-enough-password")
+
+    assert wallet.calls == [{"member_id": members.member_id}]

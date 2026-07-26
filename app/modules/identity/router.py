@@ -21,6 +21,7 @@ from app.modules.identity.schemas import (
 from app.modules.identity.service import IdentityService, TokenPair
 from app.modules.members.service import get_members_service
 from app.modules.screening.service import get_screening_service
+from app.modules.wallets.service import get_wallet_service
 
 router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(rate_limit_auth)])
 
@@ -32,6 +33,7 @@ def get_identity_service(session: SessionDep) -> IdentityService:
         IdentityRepo(session),
         get_screening_service(session),
         get_members_service(session),
+        get_wallet_service(session),
     )
 
 
