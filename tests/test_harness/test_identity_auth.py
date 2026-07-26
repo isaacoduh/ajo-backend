@@ -118,6 +118,29 @@ class FakeScreeningService:
         return []
 
 
+class FakeMembersService:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    async def ensure_for_user(
+        self,
+        *,
+        user_id: UUID,
+        display_name: str | None = None,
+        country: str = "GB",
+        screening_state: str = "pending",
+    ) -> object:
+        self.calls.append(
+            {
+                "user_id": user_id,
+                "display_name": display_name,
+                "country": country,
+                "screening_state": screening_state,
+            }
+        )
+        return object()
+
+
 def make_user() -> User:
     return User(
         id=uuid4(),
@@ -208,5 +231,25 @@ async def test_register_calls_screening(monkeypatch: pytest.MonkeyPatch) -> None
             "name": "new@example.com",
             "dob": None,
             "country": "GB",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_register_ensures_clear_member_after_screening(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_required_env(monkeypatch)
+    repo = FakeIdentityRepo(make_user())
+    screening = FakeScreeningService()
+    members = FakeMembersService()
+    service = IdentityService(repo, screening, members)  # type: ignore[arg-type]
+
+    token_pair = await service.register(email="member@example.com", password="long-enough-password")
+
+    assert members.calls == [
+        {
+            "user_id": token_pair.user.id,
+            "display_name": "member@example.com",
+            "country": "GB",
+            "screening_state": "clear",
         }
     ]

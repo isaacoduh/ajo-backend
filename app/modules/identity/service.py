@@ -17,6 +17,7 @@ from app.core.security import (
 )
 from app.modules.identity.models import User
 from app.modules.identity.repo import IdentityRepo
+from app.modules.members.service import MembersService
 from app.modules.screening.service import ScreeningService
 
 
@@ -28,9 +29,15 @@ class TokenPair:
 
 
 class IdentityService:
-    def __init__(self, repo: IdentityRepo, screening_service: ScreeningService | None = None) -> None:
+    def __init__(
+        self,
+        repo: IdentityRepo,
+        screening_service: ScreeningService | None = None,
+        members_service: MembersService | None = None,
+    ) -> None:
         self.repo = repo
         self.screening_service = screening_service
+        self.members_service = members_service
 
     async def register(self, *, email: str, password: str) -> TokenPair:
         password_hash = hash_password(password)
@@ -38,12 +45,21 @@ class IdentityService:
             user = await self.repo.create_user(email=email, password_hash=password_hash)
         except IntegrityError as exc:
             raise duplicate_email_error() from exc
+        screening_state = "pending"
         if self.screening_service is not None:
-            await self.screening_service.screen_person(
+            hits = await self.screening_service.screen_person(
                 user_id=user.id,
                 name=email,
                 dob=None,
                 country="GB",
+            )
+            screening_state = "review" if hits else "clear"
+        if self.members_service is not None:
+            await self.members_service.ensure_for_user(
+                user_id=user.id,
+                display_name=email,
+                country="GB",
+                screening_state=screening_state,
             )
         return await self._issue_pair(user=user, family_id=uuid4())
 
