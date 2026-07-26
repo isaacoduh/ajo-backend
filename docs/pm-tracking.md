@@ -50,6 +50,8 @@
 - Generated OpenAPI export.
 - Local Docker Compose workflow.
 - Railway deployment runbook.
+- Standard runtime stages: `local`, `development`, `staging`, `production`, plus internal `test`.
+- Alembic reads the app settings database URL, so local `.env` and Railway env vars drive migrations.
 - Backend harness tests.
 - Payment rail contract tests.
 - Architecture decision records.
@@ -73,8 +75,8 @@
 - Real payment provider integrations.
 - Provider-specific webhook routes.
 - Production deployment automation.
-- Seed/demo data command.
-- Full demo reset implementation tied to product data.
+- Seed/showcase data command.
+- Full seeded reset implementation tied to product data.
 - Frontend-specific API coverage for all PM screens.
 
 ## Frontend Dependency Notes
@@ -93,6 +95,7 @@
 - Required managed services are Postgres and Redis.
 - Required runtime services are API and worker.
 - Required release command is `uv run alembic upgrade head`.
+- Alembic uses `DATABASE_URL` from the process environment or the app settings `.env` fallback.
 - Required API command is `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
 - Required worker command is `uv run arq app.workers.main.WorkerSettings`.
 - Required healthcheck path is `/readyz`.
