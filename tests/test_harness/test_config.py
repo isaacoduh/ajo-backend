@@ -55,3 +55,21 @@ def test_settings_startup_summary_is_redacted(monkeypatch: pytest.MonkeyPatch) -
     assert summary["database_url"] == "postgresql+asyncpg://***:***@localhost:5432/ajo"
     assert summary["redis_url"] == "redis://***:***@localhost:6379/0"
     assert summary["rails"] == {"topup": "fake", "collection": "fake", "payout": "fake"}
+    assert summary["otel"] == {
+        "enabled": True,
+        "service_name": "ajo-backend",
+        "otlp_configured": False,
+    }
+
+
+def test_settings_treats_blank_otel_endpoint_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENV", "local")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+
+    settings = Settings()
+
+    assert settings.otel_exporter_otlp_endpoint is None

@@ -12,6 +12,7 @@ from app.core.health import readiness_status
 from app.core.idempotency import IdempotencyMiddleware
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.core.observability import configure_observability
 from app.modules.circles.router import router as circles_router
 from app.modules.identity.router import router as identity_router
 from app.modules.wallets.router import router as wallet_router
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     application.include_router(identity_router)
     application.include_router(wallet_router)
     application.include_router(statements_router)
+    configure_observability(application, settings)
 
     @application.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:

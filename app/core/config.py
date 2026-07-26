@@ -10,7 +10,7 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import Any, Self
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -77,6 +77,20 @@ class Settings(BaseSettings):
     smtp_host: str = Field(default="mailpit", alias="SMTP_HOST")
     smtp_port: int = Field(default=1025, alias="SMTP_PORT")
 
+    otel_service_name: str = Field(default="ajo-backend", alias="OTEL_SERVICE_NAME")
+    otel_exporter_otlp_endpoint: str | None = Field(
+        default=None,
+        alias="OTEL_EXPORTER_OTLP_ENDPOINT",
+    )
+    otel_enabled: bool = Field(default=True, alias="OTEL_ENABLED")
+
+    @field_validator("otel_exporter_otlp_endpoint", mode="before")
+    @classmethod
+    def empty_otel_endpoint_is_unset(cls, value: object) -> object:
+        if value == "":
+            return None
+        return value
+
     @model_validator(mode="after")
     def reject_live_money_credentials(self) -> Self:
         offenders = find_live_secret_offenders(os.environ)
@@ -102,6 +116,11 @@ class Settings(BaseSettings):
             "smtp": {
                 "host": self.smtp_host,
                 "port": self.smtp_port,
+            },
+            "otel": {
+                "enabled": self.otel_enabled,
+                "service_name": self.otel_service_name,
+                "otlp_configured": self.otel_exporter_otlp_endpoint is not None,
             },
         }
 

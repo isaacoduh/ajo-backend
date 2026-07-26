@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from opentelemetry import metrics, trace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
@@ -23,6 +24,13 @@ from app.modules.wallets.repo import WalletsRepo
 
 GBP = "GBP"
 PLATFORM_SETTLEMENT_ACCOUNT_CODE = "platform:settlement:gbp"
+tracer = trace.get_tracer(__name__)
+meter = metrics.get_meter(__name__)
+topup_counter = meter.create_counter(
+    "wallet_topups_created",
+    description="Wallet top-up commands accepted by the service.",
+    unit="1",
+)
 
 
 @dataclass(frozen=True)
@@ -208,50 +216,70 @@ class WalletService:
         currency: str,
         idempotency_key: str,
     ) -> WalletTopupResult:
-        validate_money_command(amount_minor=amount_minor, currency=currency)
-        wallet = await self.ensure_for_member(member_id=member_id)
-        payment_object = await self._create_or_reuse_topup_payment(
-            user_id=user_id,
-            amount_minor=amount_minor,
-            currency=currency,
-            idempotency_key=idempotency_key,
-        )
-        validate_topup_replay(
-            payment_object=payment_object,
-            amount_minor=amount_minor,
-            currency=currency,
-        )
-        if payment_object.journal_entry_id is not None:
+        with tracer.start_as_current_span(
+            "wallet.topup",
+            attributes={
+                "member_id": str(member_id),
+                "currency": currency,
+                "amount_minor": amount_minor,
+            },
+        ):
+            validate_money_command(amount_minor=amount_minor, currency=currency)
+            wallet = await self.ensure_for_member(member_id=member_id)
+            with tracer.start_as_current_span("wallet.topup.payment"):
+                payment_object = await self._create_or_reuse_topup_payment(
+                    user_id=user_id,
+                    amount_minor=amount_minor,
+                    currency=currency,
+                    idempotency_key=idempotency_key,
+                )
+            validate_topup_replay(
+                payment_object=payment_object,
+                amount_minor=amount_minor,
+                currency=currency,
+            )
+            if payment_object.journal_entry_id is not None:
+                return wallet_topup_result(payment_object)
+
+            platform_account = await self.ledger_service.get_account_by_code(
+                PLATFORM_SETTLEMENT_ACCOUNT_CODE
+            )
+            pending_account = await self.ledger_service.get_account_by_code(
+                wallet.pending_account_code
+            )
+            if platform_account is None or pending_account is None:
+                raise wallet_accounts_missing_error()
+
+            with tracer.start_as_current_span("wallet.topup.ledger"):
+                posted = await self.ledger_service.post_entry(
+                    idempotency_key=topup_initiated_journal_key(idempotency_key),
+                    description="Wallet top-up initiated",
+                    postings=[
+                        PostingInput(
+                            account_id=platform_account.id,
+                            side=PostingSide.DEBIT,
+                            amount_minor=amount_minor,
+                        ),
+                        PostingInput(
+                            account_id=pending_account.id,
+                            side=PostingSide.CREDIT,
+                            amount_minor=amount_minor,
+                        ),
+                    ],
+                )
+            await self._payments_service().attach_journal_entry(
+                payment_object=payment_object,
+                journal_entry_id=posted.journal_entry.id,
+            )
+            topup_counter.add(
+                1,
+                {
+                    "currency": currency,
+                    "state": payment_object.state,
+                    "provider": payment_object.provider,
+                },
+            )
             return wallet_topup_result(payment_object)
-
-        platform_account = await self.ledger_service.get_account_by_code(
-            PLATFORM_SETTLEMENT_ACCOUNT_CODE
-        )
-        pending_account = await self.ledger_service.get_account_by_code(wallet.pending_account_code)
-        if platform_account is None or pending_account is None:
-            raise wallet_accounts_missing_error()
-
-        posted = await self.ledger_service.post_entry(
-            idempotency_key=topup_initiated_journal_key(idempotency_key),
-            description="Wallet top-up initiated",
-            postings=[
-                PostingInput(
-                    account_id=platform_account.id,
-                    side=PostingSide.DEBIT,
-                    amount_minor=amount_minor,
-                ),
-                PostingInput(
-                    account_id=pending_account.id,
-                    side=PostingSide.CREDIT,
-                    amount_minor=amount_minor,
-                ),
-            ],
-        )
-        await self._payments_service().attach_journal_entry(
-            payment_object=payment_object,
-            journal_entry_id=posted.journal_entry.id,
-        )
-        return wallet_topup_result(payment_object)
 
     async def create_withdrawal(
         self,

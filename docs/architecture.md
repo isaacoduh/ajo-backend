@@ -96,6 +96,19 @@ This is deliberately phased:
   dashboard that shows a money flow crossing HTTP, service logic, payment rail,
   ledger posting, jobs, and database work.
 
+M1 OpenTelemetry is controlled by environment:
+
+- `OTEL_ENABLED` defaults to `true`.
+- `OTEL_SERVICE_NAME` defaults to `ajo-backend`.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` enables OTLP HTTP export when set, for example
+  `http://otel-collector:4318`.
+
+When no OTLP endpoint is configured, FastAPI instrumentation and business spans
+still run against the no-op SDK provider, so local development does not require a
+collector. A local collector/dashboard stack is intentionally deferred to M6; the
+intended path is OTLP HTTP into an OpenTelemetry Collector, then traces/metrics
+to Jaeger, Tempo/Prometheus/Grafana, or a demo vendor.
+
 Business-level spans should be added around money and state-transition seams:
 
 - wallet top-up and withdrawal orchestration.
