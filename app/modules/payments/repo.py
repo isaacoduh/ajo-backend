@@ -1,6 +1,7 @@
 """Payments repository."""
 
 from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,6 +108,16 @@ class PaymentsRepo:
             )
             .values(state=state)
         )
+
+    async def attach_journal_entry(
+        self,
+        *,
+        payment_object: PaymentObject,
+        journal_entry_id: UUID,
+    ) -> PaymentObject:
+        payment_object.journal_entry_id = journal_entry_id
+        await self.session.flush()
+        return payment_object
 
     async def create_recon_break(
         self,

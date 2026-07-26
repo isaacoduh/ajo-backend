@@ -11,8 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
 from app.core.security import utc_now
-from app.db.ledger import AccountType
+from app.db.ledger import AccountType, PostingInput, PostingSide
 from app.modules.ledger.service import LedgerService
+from app.modules.payments.models import PaymentObject
+from app.modules.payments.registry import PaymentRailRegistry, default_registry
+from app.modules.payments.repo import PaymentsRepo
+from app.modules.payments.service import PaymentsService
+from app.modules.payments.types import PaymentFlow, TopupRequest
 from app.modules.wallets.models import Wallet
 from app.modules.wallets.repo import WalletsRepo
 
@@ -51,10 +56,27 @@ class WalletActivityPage:
     next_cursor: str | None
 
 
+@dataclass(frozen=True)
+class WalletTopupResult:
+    id: UUID
+    amount_minor: int
+    currency: str
+    state: str
+    journal_entry_id: UUID | None
+
+
 class WalletService:
-    def __init__(self, repo: WalletsRepo, ledger_service: LedgerService) -> None:
+    def __init__(
+        self,
+        repo: WalletsRepo,
+        ledger_service: LedgerService,
+        payments_service: PaymentsService | None = None,
+        rail_registry: PaymentRailRegistry | None = None,
+    ) -> None:
         self.repo = repo
         self.ledger_service = ledger_service
+        self.payments_service = payments_service
+        self.rail_registry = rail_registry
 
     async def ensure_for_member(self, *, member_id: UUID) -> Wallet:
         account_codes = wallet_account_codes(member_id)
@@ -141,6 +163,93 @@ class WalletService:
             next_cursor=next_cursor,
         )
 
+    async def create_topup(
+        self,
+        *,
+        member_id: UUID,
+        user_id: UUID,
+        amount_minor: int,
+        currency: str,
+        idempotency_key: str,
+    ) -> WalletTopupResult:
+        validate_money_command(amount_minor=amount_minor, currency=currency)
+        wallet = await self.ensure_for_member(member_id=member_id)
+        payment_object = await self._create_or_reuse_topup_payment(
+            user_id=user_id,
+            amount_minor=amount_minor,
+            currency=currency,
+            idempotency_key=idempotency_key,
+        )
+        validate_topup_replay(
+            payment_object=payment_object,
+            amount_minor=amount_minor,
+            currency=currency,
+        )
+        if payment_object.journal_entry_id is not None:
+            return wallet_topup_result(payment_object)
+
+        platform_account = await self.ledger_service.get_account_by_code(
+            PLATFORM_SETTLEMENT_ACCOUNT_CODE
+        )
+        pending_account = await self.ledger_service.get_account_by_code(wallet.pending_account_code)
+        if platform_account is None or pending_account is None:
+            raise wallet_accounts_missing_error()
+
+        posted = await self.ledger_service.post_entry(
+            idempotency_key=topup_initiated_journal_key(idempotency_key),
+            description="Wallet top-up initiated",
+            postings=[
+                PostingInput(
+                    account_id=platform_account.id,
+                    side=PostingSide.DEBIT,
+                    amount_minor=amount_minor,
+                ),
+                PostingInput(
+                    account_id=pending_account.id,
+                    side=PostingSide.CREDIT,
+                    amount_minor=amount_minor,
+                ),
+            ],
+        )
+        await self._payments_service().attach_journal_entry(
+            payment_object=payment_object,
+            journal_entry_id=posted.journal_entry.id,
+        )
+        return wallet_topup_result(payment_object)
+
+    async def _create_or_reuse_topup_payment(
+        self,
+        *,
+        user_id: UUID,
+        amount_minor: int,
+        currency: str,
+        idempotency_key: str,
+    ) -> PaymentObject:
+        existing = await self._payments_service().get_payment_object_by_idempotency_key(
+            idempotency_key
+        )
+        if existing is not None:
+            return existing
+        return await self._payments_service().create_topup_object(
+            self._rail_registry().for_flow(PaymentFlow.TOPUP),
+            TopupRequest(
+                idempotency_key=idempotency_key,
+                user_id=str(user_id),
+                amount_minor=amount_minor,
+                currency=currency,
+            ),
+        )
+
+    def _payments_service(self) -> PaymentsService:
+        if self.payments_service is not None:
+            return self.payments_service
+        return PaymentsService(PaymentsRepo(self.repo.session))
+
+    def _rail_registry(self) -> PaymentRailRegistry:
+        if self.rail_registry is not None:
+            return self.rail_registry
+        return default_registry()
+
 
 def get_wallet_service(session: AsyncSession) -> WalletService:
     return WalletService(WalletsRepo(session), LedgerService(session))
@@ -202,6 +311,56 @@ def wallet_bucket(
     if account_code == available_account_code:
         return "available"
     raise wallet_accounts_missing_error()
+
+
+def validate_money_command(*, amount_minor: int, currency: str) -> None:
+    if currency != GBP:
+        raise AppError(
+            status_code=422,
+            title="Invalid Currency",
+            detail="Wallet money movement supports GBP only.",
+            type_="https://ajo.dev/problems/invalid-wallet-currency",
+        )
+    if amount_minor <= 0:
+        raise AppError(
+            status_code=422,
+            title="Invalid Amount",
+            detail="Wallet amount_minor must be positive.",
+            type_="https://ajo.dev/problems/invalid-wallet-amount",
+        )
+
+
+def validate_topup_replay(
+    *,
+    payment_object: PaymentObject,
+    amount_minor: int,
+    currency: str,
+) -> None:
+    if (
+        payment_object.flow != PaymentFlow.TOPUP.value
+        or payment_object.amount_minor != amount_minor
+        or payment_object.currency != currency
+    ):
+        raise AppError(
+            status_code=409,
+            title="Conflict",
+            detail="Idempotency-Key was already used for a different payment command.",
+            type_="https://ajo.dev/problems/payment-idempotency-key-conflict",
+        )
+
+
+def topup_initiated_journal_key(idempotency_key: str) -> str:
+    return f"wallet-topup:{idempotency_key}:initiated"
+
+
+def wallet_topup_result(payment_object: PaymentObject) -> WalletTopupResult:
+    return WalletTopupResult(
+        id=payment_object.id,
+        amount_minor=payment_object.amount_minor or 0,
+        currency=payment_object.currency,
+        state=payment_object.state,
+        journal_entry_id=payment_object.journal_entry_id,
+    )
 
 
 def invalid_activity_cursor_error() -> AppError:

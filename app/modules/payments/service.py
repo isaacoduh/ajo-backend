@@ -1,7 +1,10 @@
 """Payments service over provider-plural rails."""
 
+from uuid import UUID
+
 import structlog
 
+from app.modules.payments.models import PaymentObject
 from app.modules.payments.port import PaymentRailPort
 from app.modules.payments.repo import PaymentsRepo
 from app.modules.payments.types import (
@@ -24,6 +27,31 @@ class PaymentsService:
         result = await rail.create_topup(request)
         await self.repo.upsert_payment_object(flow=PaymentFlow.TOPUP, result=result)
         return result
+
+    async def create_topup_object(
+        self,
+        rail: PaymentRailPort,
+        request: TopupRequest,
+    ) -> PaymentObject:
+        result = await rail.create_topup(request)
+        return await self.repo.upsert_payment_object(flow=PaymentFlow.TOPUP, result=result)
+
+    async def get_payment_object_by_idempotency_key(
+        self,
+        idempotency_key: str,
+    ) -> PaymentObject | None:
+        return await self.repo.get_payment_object_by_idempotency_key(idempotency_key)
+
+    async def attach_journal_entry(
+        self,
+        *,
+        payment_object: PaymentObject,
+        journal_entry_id: UUID,
+    ) -> PaymentObject:
+        return await self.repo.attach_journal_entry(
+            payment_object=payment_object,
+            journal_entry_id=journal_entry_id,
+        )
 
     async def collect(
         self,
@@ -100,4 +128,3 @@ class PaymentsService:
         if breaks:
             logger.error("reconciliation_breaks_detected", count=len(breaks), provider=rail.provider)
         return breaks
-
