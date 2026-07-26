@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class WalletBalanceResponse(BaseModel):
@@ -26,3 +26,15 @@ class WalletActivityItemResponse(BaseModel):
 class WalletActivityResponse(BaseModel):
     items: list[WalletActivityItemResponse]
     next_cursor: str | None
+
+
+class WalletTopupRequest(BaseModel):
+    amount_minor: int = Field(gt=0)
+    currency: str
+
+
+class WalletTopupResponse(BaseModel):
+    id: UUID
+    amount_minor: int
+    currency: str
+    state: str

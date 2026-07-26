@@ -71,6 +71,14 @@ class PaymentsService:
         await self.repo.upsert_payment_object(flow=PaymentFlow.PAYOUT, result=result)
         return result
 
+    async def create_payout_object(
+        self,
+        rail: PaymentRailPort,
+        request: PayoutRequest,
+    ) -> PaymentObject:
+        result = await rail.send_payout(request)
+        return await self.repo.upsert_payment_object(flow=PaymentFlow.PAYOUT, result=result)
+
     async def persist_webhook(
         self,
         rail: PaymentRailPort,

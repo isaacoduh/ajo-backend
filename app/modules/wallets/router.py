@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
@@ -13,6 +13,8 @@ from app.modules.wallets.schemas import (
     WalletActivityItemResponse,
     WalletActivityResponse,
     WalletBalanceResponse,
+    WalletTopupRequest,
+    WalletTopupResponse,
 )
 from app.modules.wallets.service import WalletService, get_wallet_service
 
@@ -73,4 +75,28 @@ async def activity(
             for item in page.items
         ],
         next_cursor=page.next_cursor,
+    )
+
+
+@router.post("/topups", response_model=WalletTopupResponse, status_code=status.HTTP_201_CREATED)
+async def create_topup(
+    payload: WalletTopupRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    members_service: Annotated[MembersService, Depends(get_members_service_dep)],
+    wallet_service: Annotated[WalletService, Depends(get_wallet_service_dep)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+) -> WalletTopupResponse:
+    member = await members_service.get_current_member(user_id=current_user.id)
+    topup = await wallet_service.create_topup(
+        member_id=member.id,
+        user_id=current_user.id,
+        amount_minor=payload.amount_minor,
+        currency=payload.currency,
+        idempotency_key=idempotency_key,
+    )
+    return WalletTopupResponse(
+        id=topup.id,
+        amount_minor=topup.amount_minor,
+        currency=topup.currency,
+        state=topup.state,
     )

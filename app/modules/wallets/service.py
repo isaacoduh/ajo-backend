@@ -17,7 +17,7 @@ from app.modules.payments.models import PaymentObject
 from app.modules.payments.registry import PaymentRailRegistry, default_registry
 from app.modules.payments.repo import PaymentsRepo
 from app.modules.payments.service import PaymentsService
-from app.modules.payments.types import PaymentFlow, TopupRequest
+from app.modules.payments.types import PaymentFlow, PayoutRequest, TopupRequest
 from app.modules.wallets.models import Wallet
 from app.modules.wallets.repo import WalletsRepo
 
@@ -58,6 +58,15 @@ class WalletActivityPage:
 
 @dataclass(frozen=True)
 class WalletTopupResult:
+    id: UUID
+    amount_minor: int
+    currency: str
+    state: str
+    journal_entry_id: UUID | None
+
+
+@dataclass(frozen=True)
+class WalletWithdrawalResult:
     id: UUID
     amount_minor: int
     currency: str
@@ -217,6 +226,69 @@ class WalletService:
         )
         return wallet_topup_result(payment_object)
 
+    async def create_withdrawal(
+        self,
+        *,
+        member_id: UUID,
+        user_id: UUID,
+        amount_minor: int,
+        currency: str,
+        idempotency_key: str,
+    ) -> WalletWithdrawalResult:
+        validate_money_command(amount_minor=amount_minor, currency=currency)
+        wallet = await self.ensure_for_member(member_id=member_id)
+        existing = await self._payments_service().get_payment_object_by_idempotency_key(
+            idempotency_key
+        )
+        if existing is not None:
+            validate_withdrawal_replay(
+                payment_object=existing,
+                amount_minor=amount_minor,
+                currency=currency,
+            )
+            if existing.journal_entry_id is not None:
+                return wallet_withdrawal_result(existing)
+
+        available_account = await self.ledger_service.get_account_by_code(
+            wallet.available_account_code
+        )
+        pending_account = await self.ledger_service.get_account_by_code(wallet.pending_account_code)
+        if available_account is None or pending_account is None:
+            raise wallet_accounts_missing_error()
+        if available_account.balance_minor < amount_minor:
+            raise insufficient_wallet_funds_error()
+
+        payment_object = existing
+        if payment_object is None:
+            payment_object = await self._create_withdrawal_payment(
+                user_id=user_id,
+                amount_minor=amount_minor,
+                currency=currency,
+                idempotency_key=idempotency_key,
+            )
+
+        posted = await self.ledger_service.post_entry(
+            idempotency_key=withdrawal_initiated_journal_key(idempotency_key),
+            description="Wallet withdrawal initiated",
+            postings=[
+                PostingInput(
+                    account_id=available_account.id,
+                    side=PostingSide.DEBIT,
+                    amount_minor=amount_minor,
+                ),
+                PostingInput(
+                    account_id=pending_account.id,
+                    side=PostingSide.CREDIT,
+                    amount_minor=amount_minor,
+                ),
+            ],
+        )
+        await self._payments_service().attach_journal_entry(
+            payment_object=payment_object,
+            journal_entry_id=posted.journal_entry.id,
+        )
+        return wallet_withdrawal_result(payment_object)
+
     async def _create_or_reuse_topup_payment(
         self,
         *,
@@ -233,6 +305,24 @@ class WalletService:
         return await self._payments_service().create_topup_object(
             self._rail_registry().for_flow(PaymentFlow.TOPUP),
             TopupRequest(
+                idempotency_key=idempotency_key,
+                user_id=str(user_id),
+                amount_minor=amount_minor,
+                currency=currency,
+            ),
+        )
+
+    async def _create_withdrawal_payment(
+        self,
+        *,
+        user_id: UUID,
+        amount_minor: int,
+        currency: str,
+        idempotency_key: str,
+    ) -> PaymentObject:
+        return await self._payments_service().create_payout_object(
+            self._rail_registry().for_flow(PaymentFlow.PAYOUT),
+            PayoutRequest(
                 idempotency_key=idempotency_key,
                 user_id=str(user_id),
                 amount_minor=amount_minor,
@@ -349,8 +439,31 @@ def validate_topup_replay(
         )
 
 
+def validate_withdrawal_replay(
+    *,
+    payment_object: PaymentObject,
+    amount_minor: int,
+    currency: str,
+) -> None:
+    if (
+        payment_object.flow != PaymentFlow.PAYOUT.value
+        or payment_object.amount_minor != amount_minor
+        or payment_object.currency != currency
+    ):
+        raise AppError(
+            status_code=409,
+            title="Conflict",
+            detail="Idempotency-Key was already used for a different payment command.",
+            type_="https://ajo.dev/problems/payment-idempotency-key-conflict",
+        )
+
+
 def topup_initiated_journal_key(idempotency_key: str) -> str:
     return f"wallet-topup:{idempotency_key}:initiated"
+
+
+def withdrawal_initiated_journal_key(idempotency_key: str) -> str:
+    return f"wallet-withdrawal:{idempotency_key}:initiated"
 
 
 def wallet_topup_result(payment_object: PaymentObject) -> WalletTopupResult:
@@ -360,6 +473,25 @@ def wallet_topup_result(payment_object: PaymentObject) -> WalletTopupResult:
         currency=payment_object.currency,
         state=payment_object.state,
         journal_entry_id=payment_object.journal_entry_id,
+    )
+
+
+def wallet_withdrawal_result(payment_object: PaymentObject) -> WalletWithdrawalResult:
+    return WalletWithdrawalResult(
+        id=payment_object.id,
+        amount_minor=payment_object.amount_minor or 0,
+        currency=payment_object.currency,
+        state=payment_object.state,
+        journal_entry_id=payment_object.journal_entry_id,
+    )
+
+
+def insufficient_wallet_funds_error() -> AppError:
+    return AppError(
+        status_code=409,
+        title="Insufficient Wallet Funds",
+        detail="Available wallet balance is lower than the requested withdrawal amount.",
+        type_="https://ajo.dev/problems/insufficient-wallet-funds",
     )
 
 
