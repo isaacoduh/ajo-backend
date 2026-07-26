@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import get_settings
 from app.core.errors import PROBLEM_JSON, problem_response, register_error_handlers
 from app.core.health import readiness_status
-from app.core.idempotency import IdempotencyMiddleware
+from app.core.idempotency import IdempotencyMiddleware, configure_idempotency_openapi
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.observability import configure_observability
@@ -62,6 +62,7 @@ def create_app() -> FastAPI:
             )
         return JSONResponse(status)
 
+    configure_idempotency_openapi(application)
     return application
 
 

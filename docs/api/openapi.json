@@ -463,6 +463,18 @@
     "/auth/login": {
       "post": {
         "operationId": "login_auth_login_post",
+        "parameters": [
+          {
+            "description": "Unique key for this mutation. Reuse it only when retrying the same request.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -484,6 +496,12 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -504,6 +522,18 @@
     "/auth/logout": {
       "post": {
         "operationId": "logout_auth_logout_post",
+        "parameters": [
+          {
+            "description": "Unique key for this mutation. Reuse it only when retrying the same request.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -517,6 +547,12 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
           },
           "422": {
             "content": {
@@ -538,9 +574,27 @@
     "/auth/logout-all": {
       "post": {
         "operationId": "logout_all_auth_logout_all_post",
+        "parameters": [
+          {
+            "description": "Unique key for this mutation. Reuse it only when retrying the same request.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
           }
         },
         "security": [
@@ -557,6 +611,18 @@
     "/auth/refresh": {
       "post": {
         "operationId": "refresh_auth_refresh_post",
+        "parameters": [
+          {
+            "description": "Unique key for this mutation. Reuse it only when retrying the same request.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -578,6 +644,12 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -598,6 +670,18 @@
     "/auth/register": {
       "post": {
         "operationId": "register_auth_register_post",
+        "parameters": [
+          {
+            "description": "Unique key for this mutation. Reuse it only when retrying the same request.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -618,6 +702,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
           },
           "422": {
             "content": {
@@ -881,6 +971,12 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
           "422": {
             "content": {
               "application/json": {
@@ -937,6 +1033,12 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
           },
           "422": {
             "content": {

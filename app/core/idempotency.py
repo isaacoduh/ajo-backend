@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
 import structlog
+from fastapi import FastAPI
 from redis.exceptions import RedisError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -22,6 +23,15 @@ IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
 IDEMPOTENCY_TTL_SECONDS = 48 * 60 * 60
 IDEMPOTENCY_LOCK_TTL_SECONDS = 60
 MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+OPENAPI_MUTATING_METHODS = {method.lower() for method in MUTATING_METHODS}
+
+IDEMPOTENCY_KEY_OPENAPI_PARAMETER: dict[str, Any] = {
+    "name": IDEMPOTENCY_KEY_HEADER,
+    "in": "header",
+    "required": True,
+    "description": "Unique key for this mutation. Reuse it only when retrying the same request.",
+    "schema": {"type": "string", "minLength": 1},
+}
 
 
 class IdempotencyStore(Protocol):
@@ -127,6 +137,46 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     method=request.method,
                     path=request.url.path,
                 )
+
+
+def configure_idempotency_openapi(app: FastAPI) -> None:
+    """Expose the middleware's required header in interactive API documentation."""
+    original_openapi = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        schema = original_openapi()
+        paths = schema.get("paths", {})
+        for path_item in paths.values():
+            if not isinstance(path_item, dict):
+                continue
+            for method in OPENAPI_MUTATING_METHODS:
+                operation = path_item.get(method)
+                if not isinstance(operation, dict):
+                    continue
+
+                parameters = operation.setdefault("parameters", [])
+                has_idempotency_key = any(
+                    isinstance(parameter, dict)
+                    and parameter.get("in") == "header"
+                    and str(parameter.get("name", "")).lower()
+                    == IDEMPOTENCY_KEY_HEADER.lower()
+                    for parameter in parameters
+                )
+                if not has_idempotency_key:
+                    parameters.append(IDEMPOTENCY_KEY_OPENAPI_PARAMETER.copy())
+
+                responses = operation.setdefault("responses", {})
+                responses.setdefault(
+                    "400",
+                    {"description": "Idempotency-Key header is required."},
+                )
+                responses.setdefault(
+                    "409",
+                    {"description": "A request with this Idempotency-Key is already in progress."},
+                )
+        return schema
+
+    app.openapi = openapi  # type: ignore[method-assign]
 
 
 def response_cache_key(request: Request, idempotency_key: str) -> str:

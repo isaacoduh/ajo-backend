@@ -3,9 +3,9 @@ import asyncio
 import httpx
 import pytest
 from app.core.errors import AppError
-from app.core.idempotency import IdempotencyMiddleware
+from app.core.idempotency import IdempotencyMiddleware, configure_idempotency_openapi
 from app.core.rate_limit import RateLimit, enforce_rate_limit
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 from redis.exceptions import RedisError
 
 
@@ -73,6 +73,51 @@ def idempotency_test_app(store: InMemoryIdempotencyStore) -> FastAPI:
         return {"count": calls["count"]}
 
     return app
+
+
+def test_openapi_documents_idempotency_header_on_mutations() -> None:
+    app = FastAPI()
+
+    @app.post("/target")
+    async def target() -> dict[str, str]:
+        return {"status": "ok"}
+
+    configure_idempotency_openapi(app)
+
+    operation = app.openapi()["paths"]["/target"]["post"]
+    parameters = operation["parameters"]
+
+    assert parameters == [
+        {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": True,
+            "description": (
+                "Unique key for this mutation. Reuse it only when retrying the same request."
+            ),
+            "schema": {"type": "string", "minLength": 1},
+        }
+    ]
+    assert operation["responses"]["400"]["description"] == (
+        "Idempotency-Key header is required."
+    )
+    assert operation["responses"]["409"]["description"] == (
+        "A request with this Idempotency-Key is already in progress."
+    )
+
+
+def test_openapi_does_not_duplicate_declared_idempotency_header() -> None:
+    app = FastAPI()
+
+    @app.post("/target")
+    async def target(idempotency_key: str = Header(alias="Idempotency-Key")) -> None:
+        _ = idempotency_key
+
+    configure_idempotency_openapi(app)
+
+    parameters = app.openapi()["paths"]["/target"]["post"]["parameters"]
+
+    assert len(parameters) == 1
 
 
 @pytest.mark.asyncio
@@ -153,4 +198,3 @@ async def test_rate_limit_fails_open_on_redis_error() -> None:
         rate_limit=RateLimit(name="test", limit=1, window_seconds=60),
         store=FailingRateLimitStore(),
     )
-
