@@ -38,3 +38,15 @@ class WalletTopupResponse(BaseModel):
     amount_minor: int
     currency: str
     state: str
+
+
+class WalletWithdrawalRequest(BaseModel):
+    amount_minor: int = Field(gt=0)
+    currency: str
+
+
+class WalletWithdrawalResponse(BaseModel):
+    id: UUID
+    amount_minor: int
+    currency: str
+    state: str

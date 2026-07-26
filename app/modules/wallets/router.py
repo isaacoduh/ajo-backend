@@ -15,6 +15,8 @@ from app.modules.wallets.schemas import (
     WalletBalanceResponse,
     WalletTopupRequest,
     WalletTopupResponse,
+    WalletWithdrawalRequest,
+    WalletWithdrawalResponse,
 )
 from app.modules.wallets.service import WalletService, get_wallet_service
 
@@ -99,4 +101,32 @@ async def create_topup(
         amount_minor=topup.amount_minor,
         currency=topup.currency,
         state=topup.state,
+    )
+
+
+@router.post(
+    "/withdrawals",
+    response_model=WalletWithdrawalResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_withdrawal(
+    payload: WalletWithdrawalRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    members_service: Annotated[MembersService, Depends(get_members_service_dep)],
+    wallet_service: Annotated[WalletService, Depends(get_wallet_service_dep)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
+) -> WalletWithdrawalResponse:
+    member = await members_service.get_current_member(user_id=current_user.id)
+    withdrawal = await wallet_service.create_withdrawal(
+        member_id=member.id,
+        user_id=current_user.id,
+        amount_minor=payload.amount_minor,
+        currency=payload.currency,
+        idempotency_key=idempotency_key,
+    )
+    return WalletWithdrawalResponse(
+        id=withdrawal.id,
+        amount_minor=withdrawal.amount_minor,
+        currency=withdrawal.currency,
+        state=withdrawal.state,
     )
