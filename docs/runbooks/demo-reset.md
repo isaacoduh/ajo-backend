@@ -20,11 +20,11 @@ because seed data and Railway project variables are not implemented yet.
 
 Required final behavior when seed data lands:
 
-- set `ENV=demo`
+- set `ENV=staging`
 - run Alembic migrations
 - truncate/recreate demo-owned data only
 - seed deterministic demo users, circles, ledger accounts, and fake rail objects
 - reject live-mode payment credentials through normal config validation
 
-Reset must preserve the no-live-money guarantee and use demo/sandbox-only
+Reset must preserve the no-live-money guarantee and use staging/sandbox-only
 configuration.

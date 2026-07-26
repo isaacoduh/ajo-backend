@@ -16,8 +16,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Environment(StrEnum):
     LOCAL = "local"
+    DEVELOPMENT = "development"
+    STAGING = "staging"
+    PRODUCTION = "production"
     TEST = "test"
-    DEMO = "demo"
 
 
 class RailName(StrEnum):

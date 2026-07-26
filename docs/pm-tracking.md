@@ -96,6 +96,6 @@
 - Required API command is `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
 - Required worker command is `uv run arq app.workers.main.WorkerSettings`.
 - Required healthcheck path is `/readyz`.
-- Required environment is `ENV=demo`.
+- Required Railway showcase environment is `ENV=staging`.
 - Required fake rail settings are `RAIL_TOPUP=fake`, `RAIL_COLLECTION=fake`, and `RAIL_PAYOUT=fake`.
 - Live payment credentials must not be set.

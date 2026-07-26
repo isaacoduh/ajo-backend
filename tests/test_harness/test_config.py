@@ -1,5 +1,5 @@
 import pytest
-from app.core.config import Settings, find_live_secret_offenders, redact_url
+from app.core.config import Environment, Settings, find_live_secret_offenders, redact_url
 from pydantic import ValidationError
 
 
@@ -19,6 +19,16 @@ def test_finds_live_payment_secret_values() -> None:
     )
 
     assert offenders == {"STRIPE_SECRET_KEY"}
+
+
+def test_environment_accepts_deploy_stages() -> None:
+    assert {environment.value for environment in Environment} == {
+        "local",
+        "development",
+        "staging",
+        "production",
+        "test",
+    }
 
 
 def test_settings_reject_live_payment_secret(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -21,7 +21,7 @@ is updated in the same commit.
 - `api/` - API conventions and generated OpenAPI export.
 - `pitch/` - future evaluation matrix and load-test evidence.
 - `rails/` - one provider note per future rail integration.
-- `runbooks/` - operational procedures for local, demo, and reset workflows.
+- `runbooks/` - operational procedures for local, staging, production, and reset workflows.
 
 ## Existing References
 

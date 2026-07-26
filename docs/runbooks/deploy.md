@@ -23,12 +23,12 @@ connectivity with short timeouts.
 
 ## Environment
 
-Set `ENV=demo`. Do not set live-mode provider credentials; the application
+Set `ENV=staging` for the Railway showcase deployment. Do not set live-mode provider credentials; the application
 rejects them at startup.
 
 Required variables:
 
-- `ENV=demo`
+- `ENV=staging`
 - `DATABASE_URL`
 - `REDIS_URL`
 - `JWT_ACCESS_SECRET`
