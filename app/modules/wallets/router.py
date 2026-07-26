@@ -13,6 +13,7 @@ from app.modules.wallets.schemas import (
     WalletActivityItemResponse,
     WalletActivityResponse,
     WalletBalanceResponse,
+    WalletStatementResponse,
     WalletTopupRequest,
     WalletTopupResponse,
     WalletWithdrawalRequest,
@@ -21,6 +22,7 @@ from app.modules.wallets.schemas import (
 from app.modules.wallets.service import WalletService, get_wallet_service
 
 router = APIRouter(prefix="/wallet", tags=["wallet"])
+statements_router = APIRouter(prefix="/statements", tags=["statements"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -129,4 +131,26 @@ async def create_withdrawal(
         amount_minor=withdrawal.amount_minor,
         currency=withdrawal.currency,
         state=withdrawal.state,
+    )
+
+
+@statements_router.get("/{period}", response_model=WalletStatementResponse)
+async def statement(
+    period: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    members_service: Annotated[MembersService, Depends(get_members_service_dep)],
+    wallet_service: Annotated[WalletService, Depends(get_wallet_service_dep)],
+) -> WalletStatementResponse:
+    member = await members_service.get_current_member(user_id=current_user.id)
+    wallet_statement = await wallet_service.statement_for_member(
+        member_id=member.id,
+        period=period,
+    )
+    return WalletStatementResponse(
+        period=wallet_statement.period,
+        currency=wallet_statement.currency,
+        opening_balance_minor=wallet_statement.opening_balance_minor,
+        movement_minor=wallet_statement.movement_minor,
+        closing_balance_minor=wallet_statement.closing_balance_minor,
+        journal_entry_ids=wallet_statement.journal_entry_ids,
     )

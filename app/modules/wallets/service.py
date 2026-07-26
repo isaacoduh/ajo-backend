@@ -3,7 +3,7 @@
 import base64
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -72,6 +72,16 @@ class WalletWithdrawalResult:
     currency: str
     state: str
     journal_entry_id: UUID | None
+
+
+@dataclass(frozen=True)
+class WalletStatement:
+    period: str
+    currency: str
+    opening_balance_minor: int
+    movement_minor: int
+    closing_balance_minor: int
+    journal_entry_ids: list[UUID]
 
 
 class WalletService:
@@ -170,6 +180,23 @@ class WalletService:
                 for row in page_rows
             ],
             next_cursor=next_cursor,
+        )
+
+    async def statement_for_member(self, *, member_id: UUID, period: str) -> WalletStatement:
+        period_start, period_end = parse_statement_period(period)
+        wallet = await self.ensure_for_member(member_id=member_id)
+        statement = await self.ledger_service.account_statement(
+            account_codes=[wallet.pending_account_code, wallet.available_account_code],
+            period_start=period_start,
+            period_end=period_end,
+        )
+        return WalletStatement(
+            period=period,
+            currency=GBP,
+            opening_balance_minor=statement.opening_balance_minor,
+            movement_minor=statement.movement_minor,
+            closing_balance_minor=statement.closing_balance_minor,
+            journal_entry_ids=statement.journal_entry_ids,
         )
 
     async def create_topup(
@@ -352,6 +379,23 @@ def wallet_account_codes(member_id: UUID) -> WalletAccountCodes:
     )
 
 
+def parse_statement_period(period: str) -> tuple[datetime, datetime]:
+    try:
+        year_text, month_text = period.split("-", 1)
+        year = int(year_text)
+        month = int(month_text)
+        if len(year_text) != 4 or len(month_text) != 2 or month < 1 or month > 12:
+            raise ValueError
+    except ValueError as exc:
+        raise invalid_statement_period_error() from exc
+    period_start = datetime(year, month, 1, tzinfo=UTC)
+    if month == 12:
+        period_end = datetime(year + 1, 1, 1, tzinfo=UTC)
+    else:
+        period_end = datetime(year, month + 1, 1, tzinfo=UTC)
+    return period_start, period_end
+
+
 @dataclass(frozen=True)
 class ActivityCursor:
     created_at: datetime
@@ -501,6 +545,15 @@ def invalid_activity_cursor_error() -> AppError:
         title="Bad Request",
         detail="Wallet activity cursor is invalid.",
         type_="https://ajo.dev/problems/invalid-wallet-activity-cursor",
+    )
+
+
+def invalid_statement_period_error() -> AppError:
+    return AppError(
+        status_code=400,
+        title="Bad Request",
+        detail="Statement period must use YYYY-MM format.",
+        type_="https://ajo.dev/problems/invalid-statement-period",
     )
 
 

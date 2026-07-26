@@ -37,7 +37,7 @@ up:
 	docker compose up --build
 
 seed:
-	@echo "Seed command will be implemented with the data model."
+	uv run python -m app.tools.seed
 
 demo-reset:
 	uv run python -m app.tools.demo_reset

@@ -50,3 +50,12 @@ class WalletWithdrawalResponse(BaseModel):
     amount_minor: int
     currency: str
     state: str
+
+
+class WalletStatementResponse(BaseModel):
+    period: str
+    currency: str
+    opening_balance_minor: int
+    movement_minor: int
+    closing_balance_minor: int
+    journal_entry_ids: list[UUID]

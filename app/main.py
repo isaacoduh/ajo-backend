@@ -15,6 +15,7 @@ from app.core.middleware import RequestContextMiddleware
 from app.modules.circles.router import router as circles_router
 from app.modules.identity.router import router as identity_router
 from app.modules.wallets.router import router as wallet_router
+from app.modules.wallets.router import statements_router
 
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
     application.include_router(circles_router)
     application.include_router(identity_router)
     application.include_router(wallet_router)
+    application.include_router(statements_router)
 
     @application.get("/healthz", tags=["health"])
     async def healthz() -> dict[str, str]:

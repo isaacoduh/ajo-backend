@@ -308,6 +308,48 @@
         "title": "WalletBalanceResponse",
         "type": "object"
       },
+      "WalletStatementResponse": {
+        "properties": {
+          "closing_balance_minor": {
+            "title": "Closing Balance Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "journal_entry_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Journal Entry Ids",
+            "type": "array"
+          },
+          "movement_minor": {
+            "title": "Movement Minor",
+            "type": "integer"
+          },
+          "opening_balance_minor": {
+            "title": "Opening Balance Minor",
+            "type": "integer"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "currency",
+          "opening_balance_minor",
+          "movement_minor",
+          "closing_balance_minor",
+          "journal_entry_ids"
+        ],
+        "title": "WalletStatementResponse",
+        "type": "object"
+      },
       "WalletTopupRequest": {
         "properties": {
           "amount_minor": {
@@ -662,6 +704,53 @@
         "summary": "Readyz",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/statements/{period}": {
+      "get": {
+        "operationId": "statement_statements__period__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletStatementResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Statement",
+        "tags": [
+          "statements"
         ]
       }
     },

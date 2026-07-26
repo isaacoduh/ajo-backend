@@ -8,7 +8,15 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.ledger import GBP, AccountType, PostedEntry, PostingInput, post_entry
+from app.db.ledger import (
+    GBP,
+    AccountType,
+    PostedEntry,
+    PostingInput,
+    PostingSide,
+    account_delta,
+    post_entry,
+)
 from app.modules.ledger.models import JournalEntry, LedgerAccount, Posting
 
 
@@ -22,6 +30,14 @@ class AccountActivityRow:
     journal_created_at: datetime
     journal_description: str
     currency: str
+
+
+@dataclass(frozen=True)
+class AccountStatement:
+    opening_balance_minor: int
+    movement_minor: int
+    closing_balance_minor: int
+    journal_entry_ids: list[UUID]
 
 
 class LedgerService:
@@ -111,6 +127,59 @@ class LedgerService:
                 currency,
             ) in result.all()
         ]
+
+    async def account_statement(
+        self,
+        *,
+        account_codes: Sequence[str],
+        period_start: datetime,
+        period_end: datetime,
+    ) -> AccountStatement:
+        result = await self.session.execute(
+            select(
+                JournalEntry.id,
+                JournalEntry.created_at,
+                LedgerAccount.account_type,
+                Posting.side,
+                Posting.amount_minor,
+            )
+            .join(JournalEntry, Posting.journal_entry_id == JournalEntry.id)
+            .join(LedgerAccount, Posting.account_id == LedgerAccount.id)
+            .where(
+                LedgerAccount.code.in_(account_codes),
+                JournalEntry.created_at < period_end,
+            )
+            .order_by(JournalEntry.created_at.asc(), JournalEntry.id.asc(), Posting.id.asc())
+        )
+        opening_balance_minor = 0
+        movement_minor = 0
+        journal_entry_ids: list[UUID] = []
+        seen_journal_entry_ids: set[UUID] = set()
+        for (
+            journal_entry_id,
+            journal_created_at,
+            account_type,
+            side,
+            amount_minor,
+        ) in result.all():
+            delta = account_delta(
+                account_type=AccountType(account_type),
+                side=PostingSide(side),
+                amount_minor=amount_minor,
+            )
+            if journal_created_at < period_start:
+                opening_balance_minor += delta
+                continue
+            movement_minor += delta
+            if journal_entry_id not in seen_journal_entry_ids:
+                journal_entry_ids.append(journal_entry_id)
+                seen_journal_entry_ids.add(journal_entry_id)
+        return AccountStatement(
+            opening_balance_minor=opening_balance_minor,
+            movement_minor=movement_minor,
+            closing_balance_minor=opening_balance_minor + movement_minor,
+            journal_entry_ids=journal_entry_ids,
+        )
 
     async def post_entry(
         self,
