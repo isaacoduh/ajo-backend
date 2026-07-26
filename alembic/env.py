@@ -7,6 +7,7 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
+from app.core.config import get_settings
 from app.db.base import Base
 from app.db.model_registry import import_all_models
 from sqlalchemy import pool
@@ -24,10 +25,7 @@ target_metadata = Base.metadata
 
 
 def get_database_url() -> str:
-    return os.getenv(
-        "DATABASE_URL",
-        config.get_main_option("sqlalchemy.url", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo"),
-    )
+    return os.getenv("DATABASE_URL") or get_settings().database_url
 
 
 def include_name(
