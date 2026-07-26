@@ -22,7 +22,7 @@ The only sanctioned journal write path is `app/db/ledger.py::post_entry()`.
 
 ## Account Taxonomy
 
-Initial taxonomy:
+General account types:
 
 - Asset
 - Liability
@@ -35,6 +35,22 @@ Balance semantics:
 - Asset and expense accounts are debit-normal.
 - Liability, income, and equity accounts are credit-normal.
 - `balance_minor` is stored in each account's normal-balance direction.
+
+M1 wallet accounts:
+
+- `platform:settlement:gbp` - asset account for FakeRail/provider settlement
+  cash used by wallet top-ups and withdrawals.
+- `member:{member_id}:wallet:pending:gbp` - liability account for member wallet
+  money in flight. Pending money is not available to spend or withdraw.
+- `member:{member_id}:wallet:available:gbp` - liability account for member
+  wallet money available for withdrawal or future circle use.
+
+The member wallet balance is ledger-derived:
+
+- pending balance = `member:{member_id}:wallet:pending:gbp.balance_minor`.
+- available balance = `member:{member_id}:wallet:available:gbp.balance_minor`.
+
+No circle, contribution, arrears, or cross-circle accounts are introduced in M1.
 
 ## Invariants
 
@@ -70,35 +86,84 @@ reversing entries.
 
 ## Posting Recipes
 
-### Contribution
+### Wallet Account Provisioning
 
-Member contribution collected into the platform settlement account:
+Wallet provisioning creates ledger accounts idempotently by deterministic code:
 
-- Debit: cash or settlement asset account.
-- Credit: member contribution liability account.
+- `platform:settlement:gbp` as an asset account.
+- `member:{member_id}:wallet:pending:gbp` as a liability account.
+- `member:{member_id}:wallet:available:gbp` as a liability account.
 
-### Payout + Fee
+Provisioning does not post a journal entry and does not change balances.
 
-Circle payout with a platform fee:
+### Wallet Top-Up Initiated
 
-- Debit: member contribution liability account.
-- Credit: cash or settlement asset account for payout amount.
-- Credit: platform fee income account for fee amount.
+When FakeRail accepts a member top-up for processing:
 
-### Top-Up
+- Debit: `platform:settlement:gbp`.
+- Credit: `member:{member_id}:wallet:pending:gbp`.
 
-Member ad-hoc top-up:
+The amount remains pending until settlement is confirmed. The journal entry uses
+integer `amount_minor` in GBP and a stable idempotency key derived from the
+wallet top-up command.
 
-- Debit: cash or settlement asset account.
-- Credit: member wallet or contribution liability account.
+### Wallet Top-Up Settled
+
+When the provider top-up reaches `SETTLED`:
+
+- Debit: `member:{member_id}:wallet:pending:gbp`.
+- Credit: `member:{member_id}:wallet:available:gbp`.
+
+This moves the member wallet liability from pending to available without changing
+the total member wallet liability.
+
+### Wallet Withdrawal Initiated
+
+When a member withdrawal is accepted for processing, reserve available funds:
+
+- Debit: `member:{member_id}:wallet:available:gbp`.
+- Credit: `member:{member_id}:wallet:pending:gbp`.
+
+The wallet service must reject the command before posting if available balance is
+less than `amount_minor`.
+
+### Wallet Withdrawal Settled
+
+When the provider payout reaches `SETTLED`:
+
+- Debit: `member:{member_id}:wallet:pending:gbp`.
+- Credit: `platform:settlement:gbp`.
+
+This removes the pending wallet liability and reduces platform settlement cash.
+
+### Failed Payment
+
+If a pending top-up fails before settlement:
+
+- Debit: `member:{member_id}:wallet:pending:gbp`.
+- Credit: `platform:settlement:gbp`.
+
+If a pending withdrawal fails before settlement:
+
+- Debit: `member:{member_id}:wallet:pending:gbp`.
+- Credit: `member:{member_id}:wallet:available:gbp`.
+
+Failures after settlement use a reversal entry linked to the original settled
+journal entry.
 
 ### Reversal
 
-Correction for a prior entry:
+Corrections and late failures are new journal entries with postings exactly
+inverted from the original entry. The reversing entry links to the original via
+`reversed_entry_id`.
 
-- Create a new journal entry with postings exactly inverted from the original.
-- Link the reversing entry to the original entry.
-- Never update or delete the original entry.
+Never update or delete journal entries or postings.
+
+### Future Circle Recipes
+
+Circle contribution, payout, fee, arrears, and shortfall recipes are intentionally
+left for M2. They must use circle-scoped account codes and must not reuse member
+wallet pending or available accounts as hidden circle balances.
 
 ## Replay
 

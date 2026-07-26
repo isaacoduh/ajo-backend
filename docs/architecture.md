@@ -16,6 +16,9 @@ flowchart LR
   Worker --> Mailpit["Mailpit / EmailPort"]
   API --> Rail["PaymentRailPort"]
   Rail --> Fake["FakeRail"]
+  API -. traces metrics logs .-> OTel["OpenTelemetry / OTLP"]
+  Worker -. traces metrics logs .-> OTel
+  OTel -. local or demo .-> Obs["Collector + Dashboard"]
 ```
 
 ## Module Map
@@ -23,6 +26,10 @@ flowchart LR
 - `app/core` - config, errors, logging, security, idempotency, pagination, deps.
 - `app/db` - engine/session/base plus database-level ledger primitives.
 - `app/modules/identity` - implemented in this pass; user authentication.
+- `app/modules/members` - domain member profile, verification state surface, and
+  user-to-member ownership.
+- `app/modules/wallets` - member wallet ownership, wallet ledger account
+  provisioning, balance/activity reads, top-ups, withdrawals, and statements.
 - `app/modules/circles` - skeleton only; copyable module template.
 - `app/modules/ledger` - service boundary over `app/db/ledger.py`.
 - `app/modules/payments` - rail port, `FakeRail`, webhook and reconciliation core.
@@ -72,6 +79,47 @@ unhandled exceptions into RFC 9457 `application/problem+json` responses.
 Unhandled errors return opaque 500 responses with `trace_id`; stack details stay
 in logs only.
 
+## Observability
+
+The showcase observability target is one OpenTelemetry setup that can emit the
+three useful signals from the API and worker: traces, metrics, and structured
+logs. The application should export through OTLP when configured, so the local
+or demo backend can be swapped between a collector, Jaeger, Prometheus/Grafana,
+Tempo/Loki, or a vendor without changing business code.
+
+This is deliberately phased:
+
+- M1 adds the minimal foundation: FastAPI request tracing, trace-correlated
+  structured logs, a small set of wallet/payment/ledger spans, and one metric
+  proving a wallet top-up can be followed end to end.
+- M6 turns the foundation into a pitch artifact: a local or demo collector and
+  dashboard that shows a money flow crossing HTTP, service logic, payment rail,
+  ledger posting, jobs, and database work.
+
+Business-level spans should be added around money and state-transition seams:
+
+- wallet top-up and withdrawal orchestration.
+- `PaymentRailPort` calls.
+- `post_entry()` and ledger replay checks.
+- webhook persist/process.
+- reconciliation jobs.
+- ARQ jobs and crons.
+- circle collection, payout, late-failure, shortfall, and arrears handling.
+
+Business-level metrics should answer operational questions rather than mirror
+every internal function:
+
+- request count and latency by route.
+- job success/failure and duration.
+- ledger postings created and rejected.
+- idempotency replays and concurrent conflicts.
+- payment state transitions, late failures, and reconciliation breaks.
+- circle collections due, collected, failed, and paid out.
+
+Logs should remain structured and include correlation fields where available:
+`request_id`, OpenTelemetry trace/span IDs, `user_id`, `member_id`, `circle_id`,
+`payment_object_id`, `journal_entry_id`, `provider`, and `idempotency_key`.
+
 ## Rate Limiting and Idempotency
 
 `app/core/rate_limit.py` implements Redis fixed-window limits. Auth routes are
@@ -97,12 +145,55 @@ access-token validation, and refresh-token families. Access JWTs expire after 15
 minutes and carry `user_id` plus `token_version`. Refresh tokens are opaque
 values; only peppered SHA-256 HMAC hashes are stored.
 
-`Member` is intentionally left for the later domain/onboarding model that
-participates in circles, screening, and money flows.
+`User` is only the authentication principal. Product flows do not attach wallet,
+circle, screening, or rail state directly to `User`.
+
+`Member` is the domain/person profile for a registered user. A member belongs to
+exactly one user and is the stable owner used by wallet, screening, circles, and
+future payment rail onboarding. The member model carries person-level profile and
+verification state only; it must not contain circle-specific fields such as
+circle role, contribution amount, payout position, invite state, arrears, or cycle
+status.
 
 Registration calls `ScreeningService` after the `User` row is created and before
 tokens are issued. In this pass the default screening port is
 `AlwaysClearScreening`; OpenSanctions arrives later behind the same port.
+
+Registration creates the `User`, performs screening through `ScreeningService`,
+then ensures a `Member` profile exists for that user before tokens are issued.
+Duplicate registration must not create duplicate members.
+
+## Members and Wallets
+
+`app/modules/members` owns the `Member` aggregate. A member is the person-domain
+record attached to a user account and is the identity used by wallet, screening,
+circles, and future rails. Other modules load member state through
+`MembersService`, not by importing member repos or models directly.
+
+A member exposes verification state derived from persisted screening results. In
+M1 the default screening provider is `AlwaysClearScreening`, so new members are
+expected to become verified immediately in local/demo flows. Later providers may
+move a member into review without changing wallet ownership.
+
+`app/modules/wallets` owns the wallet aggregate. A wallet belongs to exactly one
+member and is denominated in GBP only. The wallet stores ownership and
+provisioning metadata, but wallet balances are not hand-maintained business
+truth. Available and pending balances are derived from the member wallet ledger
+accounts.
+
+Each wallet has deterministic ledger account codes so provisioning can be
+idempotent:
+
+- `member:{member_id}:wallet:pending:gbp`
+- `member:{member_id}:wallet:available:gbp`
+
+The platform settlement account is shared across M1 wallet flows:
+
+- `platform:settlement:gbp`
+
+Wallet routes call `WalletService`. Wallet money movement calls `PaymentsService`
+for provider-plural rail operations and `LedgerService` for postings. Wallet code
+must not call FakeRail directly and must not bypass the ledger write path.
 
 ## Screening and Notifications
 
