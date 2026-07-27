@@ -22,6 +22,7 @@ from tests.factories import user_model
 class InMemoryIdempotencyStore:
     def __init__(self) -> None:
         self.values: dict[str, str] = {}
+        self.expirations: dict[str, int] = {}
 
     async def get(self, key: str) -> str | None:
         return self.values.get(key)
@@ -42,6 +43,17 @@ class InMemoryIdempotencyStore:
     async def delete(self, key: str) -> None:
         self.values.pop(key, None)
 
+    async def incr(self, key: str) -> int:
+        value = int(self.values.get(key, "0")) + 1
+        self.values[key] = str(value)
+        return value
+
+    async def expire(self, key: str, seconds: int) -> None:
+        self.expirations[key] = seconds
+
+    async def ttl(self, key: str) -> int:
+        return self.expirations.get(key, -1)
+
 
 @pytest.fixture
 def test_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -52,6 +64,7 @@ def test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
     monkeypatch.setenv("ARGON2_MEMORY_COST", "8192")
     monkeypatch.setattr("app.core.idempotency.get_redis", lambda: InMemoryIdempotencyStore())
+    monkeypatch.setattr("app.core.rate_limit.get_redis", lambda: InMemoryIdempotencyStore())
     get_settings.cache_clear()
 
 

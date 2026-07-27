@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     env: Environment = Field(default=Environment.LOCAL, alias="ENV")
     app_name: str = Field(default="ajo-backend", alias="APP_NAME")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    cors_origins: str = Field(default="http://localhost:3000", alias="CORS_ORIGINS")
 
     database_url: str = Field(alias="DATABASE_URL")
     redis_url: str = Field(alias="REDIS_URL")
@@ -83,6 +84,10 @@ class Settings(BaseSettings):
         alias="OTEL_EXPORTER_OTLP_ENDPOINT",
     )
     otel_enabled: bool = Field(default=True, alias="OTEL_ENABLED")
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @field_validator("otel_exporter_otlp_endpoint", mode="before")
     @classmethod

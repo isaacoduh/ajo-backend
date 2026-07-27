@@ -42,7 +42,13 @@ class IdentityService:
         self.members_service = members_service
         self.wallet_service = wallet_service
 
-    async def register(self, *, email: str, password: str) -> TokenPair:
+    async def register(
+        self,
+        *,
+        email: str,
+        password: str,
+        display_name: str | None = None,
+    ) -> TokenPair:
         password_hash = hash_password(password)
         try:
             user = await self.repo.create_user(email=email, password_hash=password_hash)
@@ -60,7 +66,7 @@ class IdentityService:
         if self.members_service is not None:
             member = await self.members_service.ensure_for_user(
                 user_id=user.id,
-                display_name=email,
+                display_name=display_name or email,
                 country="GB",
                 screening_state=screening_state,
             )

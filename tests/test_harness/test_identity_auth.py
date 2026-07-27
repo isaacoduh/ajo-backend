@@ -267,6 +267,30 @@ async def test_register_ensures_clear_member_after_screening(monkeypatch: pytest
 
 
 @pytest.mark.asyncio
+async def test_register_uses_display_name_for_member(monkeypatch: pytest.MonkeyPatch) -> None:
+    set_required_env(monkeypatch)
+    repo = FakeIdentityRepo(make_user())
+    screening = FakeScreeningService()
+    members = FakeMembersService()
+    service = IdentityService(repo, screening, members)  # type: ignore[arg-type]
+
+    token_pair = await service.register(
+        email="named@example.com",
+        password="long-enough-password",
+        display_name="Ada Adebayo",
+    )
+
+    assert members.calls == [
+        {
+            "user_id": token_pair.user.id,
+            "display_name": "Ada Adebayo",
+            "country": "GB",
+            "screening_state": "clear",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_register_provisions_wallet_for_member(monkeypatch: pytest.MonkeyPatch) -> None:
     set_required_env(monkeypatch)
     repo = FakeIdentityRepo(make_user())

@@ -11,6 +11,7 @@ from app.modules.identity.deps import get_current_user
 from app.modules.identity.models import User
 from app.modules.identity.repo import IdentityRepo
 from app.modules.identity.schemas import (
+    AuthMeResponse,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
@@ -19,7 +20,7 @@ from app.modules.identity.schemas import (
     UserResponse,
 )
 from app.modules.identity.service import IdentityService, TokenPair
-from app.modules.members.service import get_members_service
+from app.modules.members.service import MembersService, get_members_service
 from app.modules.screening.service import get_screening_service
 from app.modules.wallets.service import get_wallet_service
 
@@ -37,12 +38,22 @@ def get_identity_service(session: SessionDep) -> IdentityService:
     )
 
 
+def get_members_service_dep(session: SessionDep) -> MembersService:
+    return get_members_service(session)
+
+
 @router.post("/register", response_model=TokenPairResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: RegisterRequest,
     service: Annotated[IdentityService, Depends(get_identity_service)],
 ) -> TokenPairResponse:
-    return token_pair_response(await service.register(email=payload.email, password=payload.password))
+    return token_pair_response(
+        await service.register(
+            email=payload.email,
+            password=payload.password,
+            display_name=payload.display_name,
+        )
+    )
 
 
 @router.post("/login", response_model=TokenPairResponse)
@@ -51,6 +62,20 @@ async def login(
     service: Annotated[IdentityService, Depends(get_identity_service)],
 ) -> TokenPairResponse:
     return token_pair_response(await service.login(email=payload.email, password=payload.password))
+
+
+@router.get("/me", response_model=AuthMeResponse)
+async def me(
+    current_user: Annotated[User, Depends(get_current_user)],
+    members_service: Annotated[MembersService, Depends(get_members_service_dep)],
+) -> AuthMeResponse:
+    member = await members_service.get_current_member(user_id=current_user.id)
+    return AuthMeResponse(
+        email=current_user.email,
+        member_id=member.id,
+        display_name=member.display_name,
+        screening_state=member.screening_state,
+    )
 
 
 @router.post("/refresh", response_model=TokenPairResponse)
