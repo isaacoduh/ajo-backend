@@ -2879,6 +2879,31 @@
         ]
       }
     },
+    "/payments/webhooks/stripe": {
+      "post": {
+        "operationId": "stripe_webhook_payments_webhooks_stripe_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Stripe Webhook Payments Webhooks Stripe Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stripe Webhook",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
     "/readyz": {
       "get": {
         "operationId": "readyz_readyz_get",

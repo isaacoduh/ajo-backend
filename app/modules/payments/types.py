@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 
 class Capability(StrEnum):
@@ -30,6 +31,7 @@ class PaymentFlow(StrEnum):
 
 class ProviderName(StrEnum):
     FAKE = "fake"
+    STRIPE = "stripe"
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,7 @@ class RailOperationResult:
     state: SettlementState
     amount_minor: int | None = None
     currency: str = "GBP"
+    provider_metadata: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

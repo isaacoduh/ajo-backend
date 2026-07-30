@@ -27,6 +27,7 @@ class PaymentObject(Base):
     state: Mapped[str] = mapped_column(String(40), nullable=False)
     amount_minor: Mapped[int | None] = mapped_column()
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="GBP", server_default="GBP")
+    provider_metadata: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     journal_entry_id: Mapped[UUID | None] = mapped_column(ForeignKey("journal_entry.id"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -81,4 +82,3 @@ class ReconBreak(Base):
         server_default=func.now(),
         nullable=False,
     )
-

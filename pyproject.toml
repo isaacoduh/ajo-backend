@@ -96,6 +96,7 @@ filterwarnings = [
 ]
 markers = [
     "containers: tests requiring Docker testcontainers",
+    "stripe: tests covering the Stripe payment rail",
 ]
 
 [tool.importlinter]
@@ -117,6 +118,7 @@ forbidden_modules = [
     "app.modules.ledger.router",
     "app.modules.ledger.schemas",
     "app.modules.payments.fake_rail",
+    "app.modules.payments.stripe_rail",
     "app.modules.payments.models",
     "app.modules.payments.port",
     "app.modules.payments.registry",
@@ -165,6 +167,7 @@ forbidden_modules = [
     "app.modules.ledger.router",
     "app.modules.ledger.schemas",
     "app.modules.payments.fake_rail",
+    "app.modules.payments.stripe_rail",
     "app.modules.payments.models",
     "app.modules.payments.port",
     "app.modules.payments.registry",
@@ -216,6 +219,7 @@ forbidden_modules = [
     "app.modules.circles.router",
     "app.modules.circles.schemas",
     "app.modules.payments.fake_rail",
+    "app.modules.payments.stripe_rail",
     "app.modules.payments.models",
     "app.modules.payments.port",
     "app.modules.payments.registry",
@@ -296,6 +300,7 @@ forbidden_modules = [
     "app.modules.ledger.router",
     "app.modules.ledger.schemas",
     "app.modules.payments.fake_rail",
+    "app.modules.payments.stripe_rail",
     "app.modules.payments.models",
     "app.modules.payments.port",
     "app.modules.payments.registry",
@@ -333,6 +338,7 @@ forbidden_modules = [
     "app.modules.ledger.router",
     "app.modules.ledger.schemas",
     "app.modules.payments.fake_rail",
+    "app.modules.payments.stripe_rail",
     "app.modules.payments.models",
     "app.modules.payments.port",
     "app.modules.payments.registry",

@@ -24,6 +24,7 @@ IDEMPOTENCY_TTL_SECONDS = 48 * 60 * 60
 IDEMPOTENCY_LOCK_TTL_SECONDS = 60
 MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 OPENAPI_MUTATING_METHODS = {method.lower() for method in MUTATING_METHODS}
+IDEMPOTENCY_EXEMPT_PATH_PREFIXES = ("/payments/webhooks/",)
 
 IDEMPOTENCY_KEY_OPENAPI_PARAMETER: dict[str, Any] = {
     "name": IDEMPOTENCY_KEY_HEADER,
@@ -70,6 +71,8 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: NextHandler) -> Response:
         if request.method not in MUTATING_METHODS:
+            return await call_next(request)
+        if is_idempotency_exempt_path(request.url.path):
             return await call_next(request)
 
         idempotency_key = request.headers.get(IDEMPOTENCY_KEY_HEADER)
@@ -147,6 +150,8 @@ def configure_idempotency_openapi(app: FastAPI) -> None:
         schema = original_openapi()
         paths = schema.get("paths", {})
         for path_item in paths.values():
+            if is_idempotency_exempt_path_from_openapi_item(paths, path_item):
+                continue
             if not isinstance(path_item, dict):
                 continue
             for method in OPENAPI_MUTATING_METHODS:
@@ -181,6 +186,20 @@ def configure_idempotency_openapi(app: FastAPI) -> None:
 
 def response_cache_key(request: Request, idempotency_key: str) -> str:
     return f"idempotency:response:{request.method}:{request.url.path}:{idempotency_key}"
+
+
+def is_idempotency_exempt_path(path: str) -> bool:
+    return any(path.startswith(prefix) for prefix in IDEMPOTENCY_EXEMPT_PATH_PREFIXES)
+
+
+def is_idempotency_exempt_path_from_openapi_item(
+    paths: dict[str, object],
+    path_item: object,
+) -> bool:
+    for path, candidate in paths.items():
+        if candidate is path_item and is_idempotency_exempt_path(path):
+            return True
+    return False
 
 
 def lock_cache_key(request: Request, idempotency_key: str) -> str:

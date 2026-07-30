@@ -43,6 +43,19 @@ def test_settings_reject_live_payment_secret(monkeypatch: pytest.MonkeyPatch) ->
         Settings()
 
 
+def test_settings_rejects_live_stripe_secret_from_settings_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENV", "local")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
+
+    with pytest.raises(ValidationError, match="live-mode payment credentials"):
+        Settings(STRIPE_SECRET_KEY="sk_live_123")
+
+
 def test_settings_startup_summary_is_redacted(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENV", "local")
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
@@ -73,3 +86,33 @@ def test_settings_treats_blank_otel_endpoint_as_unset(monkeypatch: pytest.Monkey
     settings = Settings()
 
     assert settings.otel_exporter_otlp_endpoint is None
+
+
+def test_settings_accepts_stripe_test_rail(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENV", "local")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
+    monkeypatch.setenv("RAIL_TOPUP", "stripe")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_123")
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test_123")
+
+    settings = Settings()
+
+    assert settings.rail_topup.value == "stripe"
+    assert settings.stripe_secret_key is not None
+
+
+def test_settings_rejects_stripe_rail_without_secret_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENV", "local")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
+    monkeypatch.setenv("RAIL_TOPUP", "stripe")
+
+    with pytest.raises(ValidationError, match="STRIPE_SECRET_KEY is required"):
+        Settings()

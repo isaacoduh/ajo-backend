@@ -1,8 +1,9 @@
 # Payments
 
-Payments are designed around a provider-plural port. This pass implements
-`FakeRail` only; Stripe, TrueLayer, GoCardless, and Griffin arrive in later rail
-integration passes against the same contract.
+Payments are designed around a provider-plural port. The current implementation
+includes `FakeRail` for local flows and `StripeRail` for sandbox PaymentIntent
+top-ups. TrueLayer, GoCardless, and Griffin arrive in later rail integration
+passes against the same contract.
 
 ## PaymentRailPort
 
@@ -30,12 +31,14 @@ Implementation files:
 - `app/modules/payments/service.py` - provider-neutral payment orchestration.
 - `app/modules/payments/repo.py` - persistence boundary.
 
-Current provider:
+Current providers:
 
 - `FakeRail`
+- `StripeRail` for sandbox PaymentIntent top-ups and webhook state mirroring.
 
 Future providers must pass `tests/contract/test_payment_rail_contract.py`
-unmodified.
+unmodified where their capability set applies. Provider-specific sandbox tests
+are marked separately, such as `@pytest.mark.stripe`.
 
 ## Rail Selection
 

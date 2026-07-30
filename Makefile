@@ -1,7 +1,7 @@
-.PHONY: help lint typecheck test test-containers import-lint money-check openapi migration migrate migration-drift up seed demo-reset stripe-listen
+.PHONY: help lint typecheck test test-containers test-stripe import-lint money-check openapi migration migrate migration-drift up seed demo-reset stripe-listen
 
 help:
-	@echo "Available targets: lint typecheck test test-containers import-lint money-check openapi migration migrate migration-drift up seed demo-reset stripe-listen"
+	@echo "Available targets: lint typecheck test test-containers test-stripe import-lint money-check openapi migration migrate migration-drift up seed demo-reset stripe-listen"
 
 lint:
 	uv run ruff check app tests
@@ -14,6 +14,9 @@ test:
 
 test-containers:
 	uv run pytest -m containers
+
+test-stripe:
+	uv run pytest -m stripe tests/test_harness/test_stripe_rail.py
 
 import-lint:
 	uv run lint-imports
@@ -43,4 +46,4 @@ demo-reset:
 	uv run python -m app.tools.demo_reset
 
 stripe-listen:
-	@echo "Stripe listener placeholder; real rail integration lands in a later pass."
+	stripe listen --forward-to localhost:8000/payments/webhooks/stripe

@@ -28,6 +28,7 @@ class PaymentsRepo:
             existing.state = result.state.value
             existing.amount_minor = result.amount_minor
             existing.currency = result.currency
+            existing.provider_metadata = result.provider_metadata
             await self.session.flush()
             return existing
 
@@ -39,6 +40,7 @@ class PaymentsRepo:
             state=result.state.value,
             amount_minor=result.amount_minor,
             currency=result.currency,
+            provider_metadata=result.provider_metadata,
         )
         self.session.add(payment_object)
         await self.session.flush()

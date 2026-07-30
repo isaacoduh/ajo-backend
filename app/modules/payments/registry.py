@@ -3,6 +3,7 @@
 from app.core.config import RailName, Settings, get_settings
 from app.modules.payments.fake_rail import FakeRail
 from app.modules.payments.port import PaymentRailPort
+from app.modules.payments.stripe_rail import StripeRail
 from app.modules.payments.types import PaymentFlow
 
 
@@ -24,5 +25,9 @@ class PaymentRailRegistry:
 
 
 def default_registry() -> PaymentRailRegistry:
-    return PaymentRailRegistry({RailName.FAKE.value: FakeRail()})
-
+    return PaymentRailRegistry(
+        {
+            RailName.FAKE.value: FakeRail(),
+            RailName.STRIPE.value: StripeRail(),
+        }
+    )

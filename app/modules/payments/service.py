@@ -13,6 +13,7 @@ from app.modules.payments.types import (
     PayoutRequest,
     ProviderStatementLine,
     RailOperationResult,
+    SettlementState,
     TopupRequest,
 )
 
@@ -104,6 +105,48 @@ class PaymentsService:
         provider_object_id: str,
     ) -> RailOperationResult:
         result = await rail.get_settlement_status(provider_object_id)
+        payment_object = await self.repo.get_payment_object(
+            provider=result.provider.value,
+            provider_object_id=result.provider_object_id,
+        )
+        if payment_object is None:
+            await self.repo.create_recon_break(
+                provider=result.provider.value,
+                provider_object_id=result.provider_object_id,
+                idempotency_key=result.idempotency_key,
+                reason="webhook_missing_internal_payment_object",
+                details={
+                    "provider_state": result.state.value,
+                    "amount_minor": result.amount_minor,
+                    "currency": result.currency,
+                },
+            )
+            logger.error(
+                "webhook_reconciliation_break_detected",
+                provider=rail.provider,
+                provider_object_id=result.provider_object_id,
+                reason="webhook_missing_internal_payment_object",
+            )
+            return result
+        current = SettlementState(payment_object.state)
+        if not webhook_state_can_apply(current=current, provider_state=result.state):
+            await self.repo.create_recon_break(
+                provider=result.provider.value,
+                provider_object_id=result.provider_object_id,
+                idempotency_key=result.idempotency_key,
+                reason="webhook_state_conflict",
+                details={
+                    "provider_state": result.state.value,
+                    "internal_state": payment_object.state,
+                },
+            )
+            logger.error(
+                "webhook_reconciliation_break_detected",
+                provider=rail.provider,
+                provider_object_id=result.provider_object_id,
+                reason="webhook_state_conflict",
+            )
+            return result
         await self.repo.update_payment_state(
             provider=result.provider.value,
             provider_object_id=result.provider_object_id,
@@ -144,3 +187,22 @@ class PaymentsService:
         if breaks:
             logger.error("reconciliation_breaks_detected", count=len(breaks), provider=rail.provider)
         return breaks
+
+
+def webhook_state_can_apply(*, current: SettlementState, provider_state: SettlementState) -> bool:
+    if current == provider_state:
+        return True
+    order = {
+        SettlementState.INITIATED: 0,
+        SettlementState.PROCESSING: 1,
+        SettlementState.SETTLED: 2,
+        SettlementState.FAILED: 2,
+        SettlementState.FAILED_LATE: 3,
+    }
+    if provider_state == SettlementState.FAILED_LATE:
+        return current == SettlementState.SETTLED
+    if current in {SettlementState.FAILED, SettlementState.FAILED_LATE}:
+        return False
+    if current == SettlementState.SETTLED:
+        return False
+    return order[provider_state] >= order[current]

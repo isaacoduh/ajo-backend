@@ -24,6 +24,7 @@ class Environment(StrEnum):
 
 class RailName(StrEnum):
     FAKE = "fake"
+    STRIPE = "stripe"
 
 
 LIVE_SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -75,6 +76,20 @@ class Settings(BaseSettings):
     rail_collection: RailName = Field(default=RailName.FAKE, alias="RAIL_COLLECTION")
     rail_payout: RailName = Field(default=RailName.FAKE, alias="RAIL_PAYOUT")
 
+    stripe_secret_key: SecretStr | None = Field(default=None, alias="STRIPE_SECRET_KEY")
+    stripe_publishable_key: str | None = Field(default=None, alias="STRIPE_PUBLISHABLE_KEY")
+    stripe_webhook_secret: SecretStr | None = Field(default=None, alias="STRIPE_WEBHOOK_SECRET")
+    stripe_api_base_url: str = Field(default="https://api.stripe.com", alias="STRIPE_API_BASE_URL")
+    stripe_connect_enabled: bool = Field(default=False, alias="STRIPE_CONNECT_ENABLED")
+    stripe_connect_refresh_url: str | None = Field(
+        default=None,
+        alias="STRIPE_CONNECT_REFRESH_URL",
+    )
+    stripe_connect_return_url: str | None = Field(
+        default=None,
+        alias="STRIPE_CONNECT_RETURN_URL",
+    )
+
     smtp_host: str = Field(default="mailpit", alias="SMTP_HOST")
     smtp_port: int = Field(default=1025, alias="SMTP_PORT")
 
@@ -96,12 +111,49 @@ class Settings(BaseSettings):
             return None
         return value
 
+    @field_validator(
+        "stripe_secret_key",
+        "stripe_publishable_key",
+        "stripe_webhook_secret",
+        "stripe_connect_refresh_url",
+        "stripe_connect_return_url",
+        mode="before",
+    )
+    @classmethod
+    def blank_stripe_values_are_unset(cls, value: object) -> object:
+        if value == "":
+            return None
+        return value
+
     @model_validator(mode="after")
     def reject_live_money_credentials(self) -> Self:
         offenders = find_live_secret_offenders(os.environ)
+        offenders.update(
+            find_live_secret_offenders(
+                {
+                    "STRIPE_SECRET_KEY": secret_value(self.stripe_secret_key),
+                    "STRIPE_PUBLISHABLE_KEY": self.stripe_publishable_key or "",
+                    "STRIPE_WEBHOOK_SECRET": secret_value(self.stripe_webhook_secret),
+                }
+            )
+        )
         if offenders:
             names = ", ".join(sorted(offenders))
             raise ValueError(f"live-mode payment credentials are not allowed: {names}")
+        stripe_selected = RailName.STRIPE in {
+            self.rail_topup,
+            self.rail_collection,
+            self.rail_payout,
+        }
+        if stripe_selected and self.stripe_secret_key is None:
+            raise ValueError("STRIPE_SECRET_KEY is required when any payment flow uses stripe")
+        if self.stripe_connect_enabled and (
+            self.stripe_connect_refresh_url is None or self.stripe_connect_return_url is None
+        ):
+            raise ValueError(
+                "Stripe Connect onboarding requires STRIPE_CONNECT_REFRESH_URL "
+                "and STRIPE_CONNECT_RETURN_URL"
+            )
         return self
 
     def redacted_startup_summary(self) -> dict[str, Any]:
@@ -139,6 +191,12 @@ def find_live_secret_offenders(environ: os._Environ[str] | dict[str, str]) -> se
         if has_secret_name and any(pattern.search(value) for pattern in LIVE_SECRET_PATTERNS):
             offenders.add(name)
     return offenders
+
+
+def secret_value(value: SecretStr | None) -> str:
+    if value is None:
+        return ""
+    return value.get_secret_value()
 
 
 def redact_url(value: str) -> str:
