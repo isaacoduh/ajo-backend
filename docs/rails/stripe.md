@@ -59,6 +59,9 @@ onboarding also requires both Connect return URLs.
   provider details elsewhere.
 - Webhooks: verifies Stripe HMAC signatures, persists raw events, dedupes by
   event ID, then mirrors current provider state.
+- Wallet settlement: when a top-up PaymentIntent reaches `succeeded`, the
+  provider webhook orchestration asks the wallet service to post the internal
+  pending-to-available settlement recipe.
 - Reconciliation: lists recent PaymentIntents and compares provider state against
   internal `payment_object` rows.
 - Connect onboarding: creates an Express account and account-link when
@@ -94,6 +97,17 @@ Relevant events:
 
 The implementation does not trust event deltas alone. It uses the event only to
 identify the provider object, then calls Stripe for the current state.
+
+When the fetched state maps to `settled`, wallet top-ups move funds with an
+idempotent ledger entry:
+
+```text
+debit  member:{id}:wallet:pending:gbp
+credit member:{id}:wallet:available:gbp
+```
+
+The journal idempotency key is `wallet-topup:{idempotency_key}:settled`, so
+duplicate Stripe deliveries do not double-credit the wallet.
 
 ## State Mapping
 

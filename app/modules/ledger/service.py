@@ -69,6 +69,15 @@ class LedgerService:
         result = await self.session.execute(select(LedgerAccount).where(LedgerAccount.code == code))
         return result.scalar_one_or_none()
 
+    async def get_journal_entry_by_idempotency_key(
+        self,
+        idempotency_key: str,
+    ) -> JournalEntry | None:
+        result = await self.session.execute(
+            select(JournalEntry).where(JournalEntry.idempotency_key == idempotency_key)
+        )
+        return result.scalar_one_or_none()
+
     async def list_account_activity(
         self,
         *,

@@ -235,6 +235,7 @@ class WalletService:
             wallet = await self.ensure_for_member(member_id=member_id)
             with tracer.start_as_current_span("wallet.topup.payment"):
                 payment_object = await self._create_or_reuse_topup_payment(
+                    member_id=member_id,
                     user_id=user_id,
                     amount_minor=amount_minor,
                     currency=currency,
@@ -354,6 +355,7 @@ class WalletService:
     async def _create_or_reuse_topup_payment(
         self,
         *,
+        member_id: UUID,
         user_id: UUID,
         amount_minor: int,
         currency: str,
@@ -363,8 +365,9 @@ class WalletService:
             idempotency_key
         )
         if existing is not None:
+            await self._attach_topup_wallet_metadata(payment_object=existing, member_id=member_id)
             return existing
-        return await self._payments_service().create_topup_object(
+        payment_object = await self._payments_service().create_topup_object(
             self._rail_registry().for_flow(PaymentFlow.TOPUP),
             TopupRequest(
                 idempotency_key=idempotency_key,
@@ -373,6 +376,78 @@ class WalletService:
                 currency=currency,
             ),
         )
+        await self._attach_topup_wallet_metadata(payment_object=payment_object, member_id=member_id)
+        return payment_object
+
+    async def settle_topup_if_ready(
+        self,
+        *,
+        provider: str,
+        provider_object_id: str,
+    ) -> PaymentObject | None:
+        payment_object = await PaymentsRepo(self.repo.session).get_payment_object(
+            provider=provider,
+            provider_object_id=provider_object_id,
+        )
+        if (
+            payment_object is None
+            or payment_object.flow != PaymentFlow.TOPUP.value
+            or payment_object.state != "settled"
+        ):
+            return None
+        await self._settle_topup_payment_object(payment_object)
+        return payment_object
+
+    async def _settle_topup_payment_object(self, payment_object: PaymentObject) -> None:
+        metadata = payment_object.provider_metadata or {}
+        member_id_text = metadata.get("wallet_member_id")
+        if not isinstance(member_id_text, str):
+            return
+        amount_minor = payment_object.amount_minor
+        if amount_minor is None or amount_minor <= 0:
+            return
+        settlement_key = topup_settled_journal_key(payment_object.idempotency_key)
+        existing_settlement = await self.ledger_service.get_journal_entry_by_idempotency_key(
+            settlement_key
+        )
+        if existing_settlement is not None:
+            return
+        wallet = await self.ensure_for_member(member_id=UUID(member_id_text))
+        pending_account = await self.ledger_service.get_account_by_code(wallet.pending_account_code)
+        available_account = await self.ledger_service.get_account_by_code(
+            wallet.available_account_code
+        )
+        if pending_account is None or available_account is None:
+            raise wallet_accounts_missing_error()
+        await self.ledger_service.post_entry(
+            idempotency_key=settlement_key,
+            description="Wallet top-up settled",
+            postings=[
+                PostingInput(
+                    account_id=pending_account.id,
+                    side=PostingSide.DEBIT,
+                    amount_minor=amount_minor,
+                ),
+                PostingInput(
+                    account_id=available_account.id,
+                    side=PostingSide.CREDIT,
+                    amount_minor=amount_minor,
+                ),
+            ],
+        )
+
+    async def _attach_topup_wallet_metadata(
+        self,
+        *,
+        payment_object: PaymentObject,
+        member_id: UUID,
+    ) -> None:
+        metadata = dict(payment_object.provider_metadata or {})
+        if metadata.get("wallet_member_id") == str(member_id):
+            return
+        metadata["wallet_member_id"] = str(member_id)
+        payment_object.provider_metadata = metadata
+        await self.repo.session.flush()
 
     async def _create_withdrawal_payment(
         self,
@@ -539,6 +614,10 @@ def validate_withdrawal_replay(
 
 def topup_initiated_journal_key(idempotency_key: str) -> str:
     return f"wallet-topup:{idempotency_key}:initiated"
+
+
+def topup_settled_journal_key(idempotency_key: str) -> str:
+    return f"wallet-topup:{idempotency_key}:settled"
 
 
 def withdrawal_initiated_journal_key(idempotency_key: str) -> str:

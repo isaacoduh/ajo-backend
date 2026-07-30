@@ -9,8 +9,14 @@ import pytest
 from app.core.config import Settings
 from app.db.session import get_session
 from app.main import create_app
+from app.modules.identity.models import User
+from app.modules.ledger.service import LedgerService
+from app.modules.members.models import Member
 from app.modules.payments.models import PartnerEvent
+from app.modules.payments.registry import PaymentRailRegistry
+from app.modules.payments.repo import PaymentsRepo
 from app.modules.payments.router import get_payment_rail_registry
+from app.modules.payments.service import PaymentsService
 from app.modules.payments.stripe_rail import (
     StripeRail,
     StripeWebhookVerificationError,
@@ -21,9 +27,13 @@ from app.modules.payments.types import (
     Capability,
     CollectionRequest,
     NotSupportedError,
+    ProviderName,
+    RailOperationResult,
     SettlementState,
     TopupRequest,
 )
+from app.modules.wallets.repo import WalletsRepo
+from app.modules.wallets.service import WalletService
 from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,6 +82,36 @@ def payment_intent_payload(
             "user_id": "user-1",
         },
     }
+
+
+class StripeLikeTopupRail:
+    provider = "stripe"
+
+    async def create_topup(self, request: TopupRequest) -> RailOperationResult:
+        return RailOperationResult(
+            provider=ProviderName.STRIPE,
+            provider_object_id="pi_test_123",
+            idempotency_key=request.idempotency_key,
+            state=SettlementState.INITIATED,
+            amount_minor=request.amount_minor,
+            currency=request.currency,
+            provider_metadata={"client_secret": "pi_test_123_secret_test"},
+        )
+
+
+async def create_member_user(db_session: AsyncSession, *, email: str) -> tuple[User, Member]:
+    user = User(email=email, password_hash="hash")
+    db_session.add(user)
+    await db_session.flush()
+    member = Member(
+        user_id=user.id,
+        display_name=email,
+        country="GB",
+        screening_state="clear",
+    )
+    db_session.add(member)
+    await db_session.flush()
+    return user, member
 
 
 def test_payment_intent_state_mapping() -> None:
@@ -212,12 +252,26 @@ async def test_stripe_webhook_route_persists_and_dedupes(
         },
         separators=(",", ":"),
     ).encode("utf-8")
+    user, member = await create_member_user(db_session, email="stripe-settle@example.com")
+    wallet_service = WalletService(
+        WalletsRepo(db_session),
+        LedgerService(db_session),
+        PaymentsService(PaymentsRepo(db_session)),
+        PaymentRailRegistry({"fake": StripeLikeTopupRail()}),  # type: ignore[dict-item]
+    )
+    await wallet_service.create_topup(
+        member_id=member.id,
+        user_id=user.id,
+        amount_minor=1250,
+        currency="GBP",
+        idempotency_key="stripe-topup-key",
+    )
 
     def handler(request: httpx.Request) -> httpx.Response:
         assert str(request.url) == "https://stripe.test/v1/payment_intents/pi_test_123"
         return httpx.Response(
             200,
-            json=payment_intent_payload(status="processing"),
+            json=payment_intent_payload(status="succeeded"),
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as stripe_client:
@@ -246,3 +300,7 @@ async def test_stripe_webhook_route_persists_and_dedupes(
     assert events[0].provider == "stripe"
     assert events[0].provider_event_id == "evt_test"
     assert events[0].provider_object_id == "pi_test_123"
+
+    balance = await wallet_service.balance_for_member(member_id=member.id)
+    assert balance.pending_minor == 0
+    assert balance.available_minor == 1250

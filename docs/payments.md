@@ -110,6 +110,10 @@ This pass implements the verify and persist/process skeleton:
 - `PaymentsService.process_webhook_object()` fetches current provider object
   state through `get_settlement_status()` and updates internal state from that
   fetched state.
+- Provider webhook orchestration then asks the owning domain service to apply
+  any internal ledger recipe. For wallet top-ups, a settled payment moves funds
+  from pending to available through the wallet service; provider code never
+  posts ledger entries directly.
 
 ## Reconciliation
 

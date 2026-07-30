@@ -17,6 +17,7 @@ from app.core.observability import configure_observability
 from app.modules.circles.router import router as circles_router
 from app.modules.identity.router import router as identity_router
 from app.modules.payments.router import router as payments_router
+from app.modules.provider_webhooks.router import router as provider_webhooks_router
 from app.modules.wallets.router import router as wallet_router
 from app.modules.wallets.router import statements_router
 
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     application.include_router(circles_router)
     application.include_router(identity_router)
     application.include_router(payments_router)
+    application.include_router(provider_webhooks_router)
     application.include_router(wallet_router)
     application.include_router(statements_router)
     configure_observability(application, settings)
