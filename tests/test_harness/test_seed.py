@@ -1,7 +1,12 @@
 import pytest
+from app.core.config import get_settings
+from app.modules.circles.models import Circle
+from app.modules.identity.models import User
 from app.modules.ledger.models import JournalEntry
 from app.modules.payments.models import PaymentObject
 from app.modules.screening.models import ScreeningResult
+from app.tools.demo_reset import CONFIRMATION, reset_and_seed
+from app.tools.demo_reset import async_main as demo_reset_async_main
 from app.tools.seed import SEED_EMAIL, seed_m1
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,3 +81,44 @@ async def test_m1_seed_uses_expected_demo_login(
     ).scalar_one()
 
     assert user.email == "m1.verified.member@example.com"
+
+
+@pytest.mark.asyncio
+async def test_demo_reset_rebuilds_seeded_product_data(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    db_session.add(User(email="throwaway@example.com", password_hash="hash"))
+    await db_session.flush()
+
+    first = await reset_and_seed(db_session)
+    second = await reset_and_seed(db_session)
+
+    user_count = await db_session.scalar(select(func.count()).select_from(User))
+    circle_count = await db_session.scalar(select(func.count()).select_from(Circle))
+    journal_count = await db_session.scalar(select(func.count()).select_from(JournalEntry))
+
+    assert first != second
+    assert user_count == 9
+    assert circle_count == 1
+    assert journal_count == 3
+
+
+@pytest.mark.asyncio
+async def test_demo_reset_refuses_production_before_database_work(
+    test_env: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ = test_env
+    monkeypatch.setenv("DEMO_RESET_CONFIRM", CONFIRMATION)
+    monkeypatch.setenv("ENV", "production")
+    get_settings.cache_clear()
+
+    try:
+        with pytest.raises(SystemExit) as exc_info:
+            await demo_reset_async_main()
+    finally:
+        get_settings.cache_clear()
+
+    assert exc_info.value.code == 2

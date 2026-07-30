@@ -15,16 +15,25 @@ The command refuses to run unless explicitly confirmed:
 DEMO_RESET_CONFIRM=destroy-and-reseed make demo-reset
 ```
 
-At this chassis stage, reset automation intentionally stops after confirmation
-because seed data and Railway project variables are not implemented yet.
+The command refuses to run in `ENV=production`. In `local`, `development`,
+`staging`, and `test`, it clears product tables and runs the existing M1/M2 seed
+flow again. It prints the seeded M1 login and the M2 circle ID for demo use.
 
-Required final behavior when seed data lands:
+Current behavior:
 
-- set `ENV=staging`
-- run Alembic migrations
-- truncate/recreate demo-owned data only
-- seed deterministic demo users, circles, ledger accounts, and fake rail objects
+- requires `DEMO_RESET_CONFIRM=destroy-and-reseed`
+- refuses `ENV=production`
+- clears product tables in guarded demo-capable environments
+- seeds deterministic M1 wallet data
+- seeds an 8-member M2 circle that is locked and draw-revealed
 - reject live-mode payment credentials through normal config validation
 
-Reset must preserve the no-live-money guarantee and use staging/sandbox-only
-configuration.
+Run migrations before reset:
+
+```bash
+uv run alembic upgrade head
+DEMO_RESET_CONFIRM=destroy-and-reseed make demo-reset
+```
+
+Railway staging reset still needs to be drilled against the actual staging
+database before it is claimed pitch-ready.

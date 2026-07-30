@@ -8,12 +8,13 @@ from app.core.security import create_access_token
 from app.db.ledger import AccountType, PostingSide, replay_balances
 from app.db.session import get_session
 from app.main import create_app
+from app.modules.circles.models import CircleCycle, CirclePayout
 from app.modules.circles.service import draw_commitment_hash
 from app.modules.identity.models import User
 from app.modules.ledger.models import LedgerAccount, Posting
 from app.modules.members.models import Member
 from fastapi import FastAPI
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -95,11 +96,12 @@ async def test_circle_create_list_and_detail(
 
 
 @pytest.mark.asyncio
-async def test_circle_lifecycle_collects_pays_out_and_records_late_failure(
+async def test_circle_lifetime_processes_all_cycles_and_keeps_ledger_balanced(
     test_env: None,
     db_session: AsyncSession,
 ) -> None:
     _ = test_env
+    start_date = date(2020, 1, 31)
     users_and_members = [
         await create_member_user(db_session, email=f"m2-member-{index}@example.com")
         for index in range(8)
@@ -118,7 +120,7 @@ async def test_circle_lifecycle_collects_pays_out_and_records_late_failure(
                 "member_count_target": 8,
                 "cycle_count": 8,
                 "cadence": "monthly",
-                "start_date": str(date.today()),
+                "start_date": str(start_date),
             },
         )
         assert created.status_code == 201
@@ -147,7 +149,7 @@ async def test_circle_lifecycle_collects_pays_out_and_records_late_failure(
                 json={
                     "contribution_amount_minor": 1000,
                     "cadence": "monthly",
-                    "start_date": str(date.today()),
+                    "start_date": str(start_date),
                     "payout_rules": {"rule": "commit_reveal_order"},
                 },
             )
@@ -180,21 +182,21 @@ async def test_circle_lifecycle_collects_pays_out_and_records_late_failure(
 
         collected = await client.post(f"/circles/{circle_id}/collect-due", headers=auth_headers(owner_user))
         assert collected.status_code == 200
-        paid_first_cycle = [
-            item for item in collected.json()["items"] if item["status"] == "paid"
-        ]
-        assert len(paid_first_cycle) == 8
-        cycle_id = paid_first_cycle[0]["cycle_id"]
+        paid_contributions = [item for item in collected.json()["items"] if item["status"] == "paid"]
+        assert len(paid_contributions) == 64
 
-        payout = await client.post(
-            f"/circles/{circle_id}/cycles/{cycle_id}/payout",
-            headers=auth_headers(owner_user),
-        )
-        assert payout.status_code == 200
-        assert payout.json()["amount_minor"] == 8000
+        cycle_ids = list(dict.fromkeys(item["cycle_id"] for item in collected.json()["items"]))
+        assert len(cycle_ids) == 8
+        for cycle_id in cycle_ids:
+            payout = await client.post(
+                f"/circles/{circle_id}/cycles/{cycle_id}/payout",
+                headers={**auth_headers(owner_user), "Idempotency-Key": f"payout-{cycle_id}"},
+            )
+            assert payout.status_code == 200
+            assert payout.json()["amount_minor"] == 8000
 
         failed = await client.post(
-            f"/circles/{circle_id}/contributions/{paid_first_cycle[3]['id']}/fail-late",
+            f"/circles/{circle_id}/contributions/{paid_contributions[3]['id']}/fail-late",
             headers=auth_headers(owner_user),
         )
         assert failed.status_code == 200
@@ -207,6 +209,36 @@ async def test_circle_lifecycle_collects_pays_out_and_records_late_failure(
             "arrears_minor": 1000,
             "shortfall_minor": 1000,
         }
+
+        completed = await client.post(
+            f"/circles/{circle_id}/complete",
+            headers={**auth_headers(owner_user), "Idempotency-Key": f"complete-{circle_id}"},
+        )
+        assert completed.status_code == 200
+        assert completed.json()["state"] == "completed"
+
+        completed_again = await client.post(
+            f"/circles/{circle_id}/complete",
+            headers={**auth_headers(owner_user), "Idempotency-Key": f"complete-again-{circle_id}"},
+        )
+        assert completed_again.status_code == 200
+        assert completed_again.json()["state"] == "completed"
+
+    cycle_count = await db_session.scalar(
+        select(func.count()).select_from(CircleCycle).where(CircleCycle.circle_id == UUID(circle_id))
+    )
+    paid_out_cycle_count = await db_session.scalar(
+        select(func.count()).select_from(CircleCycle).where(
+            CircleCycle.circle_id == UUID(circle_id),
+            CircleCycle.status == "paid_out",
+        )
+    )
+    payout_count = await db_session.scalar(
+        select(func.count()).select_from(CirclePayout).where(CirclePayout.circle_id == UUID(circle_id))
+    )
+    assert cycle_count == 8
+    assert paid_out_cycle_count == 8
+    assert payout_count == 8
 
     await assert_ledger_replay_equals_materialized_balances(db_session)
 

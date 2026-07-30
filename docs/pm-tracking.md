@@ -64,6 +64,9 @@
 - Circle commit-reveal draw and schedule generation.
 - FakeRail-backed circle collection and payout endpoints.
 - Circle late-failure, arrears, shortfall, ledger, statement, and completion endpoints.
+- M2 full-cycle harness coverage: 8 members, 8 cycles, 64 contribution obligations, all payouts, late failure, completion idempotency, ledger replay, and balanced debits/credits.
+- M2 lifetime Hurl story enumerates all 8 registrations, joins, agreements, collections, payouts, late failure, records, ledger, statement, and completion; commit hash still requires the documented helper calculation because Hurl cannot compute SHA-256 from captured IDs.
+- Guarded demo reset command for local/development/staging/test that requires `DEMO_RESET_CONFIRM=destroy-and-reseed`, refuses production, clears product tables, and reseeds M1/M2 demo data.
 - Generated OpenAPI export.
 - Local Docker Compose workflow.
 - Railway deployment runbook.
@@ -75,12 +78,12 @@
 
 ## Backend Remaining
 
-- Realistic 8-member circle seed/reset command.
 - Real KYC provider integration.
 - Real payment provider integrations.
 - Provider-specific webhook routes.
 - Production deployment automation.
-- Full seeded reset implementation tied to product data.
+- Railway-verified seeded reset drill.
+- M1/M2 Hurl replay evidence from a fresh local or staging environment.
 - Full M7 frontend coverage for all PM screens.
 
 ## Frontend Dependency Notes
