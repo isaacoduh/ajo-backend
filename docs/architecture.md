@@ -30,7 +30,9 @@ flowchart LR
   user-to-member ownership.
 - `app/modules/wallets` - member wallet ownership, wallet ledger account
   provisioning, balance/activity reads, top-ups, withdrawals, and statements.
-- `app/modules/circles` - skeleton only; copyable module template.
+- `app/modules/circles` - M2 circle lifecycle: create, invite, agreement, lock,
+  commit-reveal draw, schedule generation, FakeRail collection, payout,
+  late-failure, arrears, shortfall, ledger, statement, and completion.
 - `app/modules/ledger` - service boundary over `app/db/ledger.py`.
 - `app/modules/payments` - rail port, `FakeRail`, webhook and reconciliation core.
 - `app/modules/screening` - screening port and fake implementation.
@@ -207,6 +209,44 @@ The platform settlement account is shared across M1 wallet flows:
 Wallet routes call `WalletService`. Wallet money movement calls `PaymentsService`
 for provider-plural rail operations and `LedgerService` for postings. Wallet code
 must not call FakeRail directly and must not bypass the ledger write path.
+
+## Circles
+
+`app/modules/circles` owns circle state, membership, invites, agreements, draw,
+cycle schedule, contribution obligations, payouts, arrears, and shortfalls.
+Routers resolve the current `Member` through `MembersService`; circle services
+own circle permission checks and call `LedgerService`/`PaymentsService` for money
+movement.
+
+Circle states:
+
+- `draft`
+- `recruiting`
+- `agreement_pending`
+- `locked`
+- `draw_pending`
+- `active`
+- `completed`
+- `cancelled`
+
+Valid transitions:
+
+- `draft -> recruiting`
+- `recruiting -> agreement_pending`
+- `agreement_pending -> locked`
+- `locked -> draw_pending`
+- `draw_pending -> active`
+- `active -> completed`
+- any non-terminal pre-completion state may move to `cancelled`
+
+Invalid transitions return `409 application/problem+json`. Locking requires the
+target member count and one immutable agreement per active member. Draw reveal is
+deterministic: the owner first stores a SHA-256 commitment, then reveals a salt;
+the payout order sorts member IDs by `sha256(circle_id:member_id:salt)`.
+
+M2 deliberately stays on `FakeRail`. Third-party payment rails arrive only after
+the circle lifecycle can demonstrate collection, payout, late failure, shortfall,
+arrears, and reconciliation behavior.
 
 ## Screening and Notifications
 

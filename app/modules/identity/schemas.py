@@ -50,11 +50,21 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
-class AuthMeResponse(BaseModel):
+class AuthMeUserResponse(BaseModel):
+    id: UUID
     email: str
-    member_id: UUID
+
+
+class AuthMeMemberResponse(BaseModel):
+    id: UUID
     display_name: str | None
+    country: str
     screening_state: str
+
+
+class AuthMeResponse(BaseModel):
+    user: AuthMeUserResponse
+    member: AuthMeMemberResponse
 
 
 class TokenPairResponse(BaseModel):

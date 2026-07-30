@@ -7,6 +7,7 @@ def import_all_models() -> None:
     Alembic autogenerate calls this before reading `Base.metadata`. Future
     feature passes should add their model modules here when tables are created.
     """
+    from app.modules.circles import models as circles_models
     from app.modules.identity import models as identity_models
     from app.modules.ledger import models as ledger_models
     from app.modules.members import models as members_models
@@ -16,6 +17,7 @@ def import_all_models() -> None:
     from app.workers import models as worker_models
 
     _ = (
+        circles_models,
         identity_models,
         ledger_models,
         members_models,

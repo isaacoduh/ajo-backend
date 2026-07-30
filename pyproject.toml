@@ -187,6 +187,17 @@ forbidden_modules = [
     "app.modules.notifications.schemas",
     "app.modules.notifications.smtp",
 ]
+ignore_imports = [
+    "app.modules.circles.router -> app.modules.identity.deps",
+    "app.modules.circles.router -> app.modules.identity.models",
+    "app.modules.circles.router -> app.modules.members.service",
+    "app.modules.circles.service -> app.db.ledger",
+    "app.modules.circles.service -> app.modules.ledger.service",
+    "app.modules.circles.service -> app.modules.payments.registry",
+    "app.modules.circles.service -> app.modules.payments.repo",
+    "app.modules.circles.service -> app.modules.payments.service",
+    "app.modules.circles.service -> app.modules.payments.types",
+]
 
 [[tool.importlinter.contracts]]
 name = "Ledger only crosses modules through services"

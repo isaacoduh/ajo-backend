@@ -2,6 +2,7 @@
 
 import asyncio
 from dataclasses import dataclass
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,6 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import hash_password
 from app.db.ledger import PostingInput, PostingSide
 from app.db.session import session_scope
+from app.modules.circles.models import Circle
+from app.modules.circles.repo import CirclesRepo
+from app.modules.circles.service import CirclesService, draw_commitment_hash
 from app.modules.identity.models import User
 from app.modules.ledger.models import JournalEntry
 from app.modules.ledger.service import LedgerService
@@ -84,14 +88,87 @@ async def seed_m1(session: AsyncSession) -> SeedSummary:
     )
 
 
+async def seed_m2_circle(session: AsyncSession) -> UUID:
+    result = await session.execute(select(Circle).where(Circle.name == "M2 Seed Circle"))
+    existing = result.scalar_one_or_none()
+    if existing is not None:
+        return existing.id
+
+    users_and_members = []
+    for index in range(8):
+        user = await ensure_user(
+            session,
+            email=f"m2.seed.member{index + 1}@example.com",
+            password=SEED_PASSWORD,
+        )
+        await ensure_clear_screening_result(session, user=user)
+        member = await MembersService(MembersRepo(session)).ensure_for_user(
+            user_id=user.id,
+            display_name=f"M2 Seed Member {index + 1}",
+            country="GB",
+            screening_state="clear",
+        )
+        users_and_members.append((user, member))
+
+    owner_member = users_and_members[0][1]
+    service = CirclesService(
+        CirclesRepo(session),
+        LedgerService(session),
+        PaymentsService(PaymentsRepo(session)),
+    )
+    circle = await service.create_circle(
+        owner_member_id=owner_member.id,
+        name="M2 Seed Circle",
+        contribution_amount_minor=1000,
+        member_count_target=8,
+        cycle_count=8,
+        cadence="monthly",
+        start_date=date.today(),
+    )
+    circle_id = circle.id
+    for _user, member in users_and_members[1:]:
+        invite = await service.create_invite(
+            circle_id=circle_id,
+            member_id=owner_member.id,
+            email=None,
+            expires_in_days=30,
+        )
+        await service.join(token=invite.token, member_id=member.id)
+
+    for _user, member in users_and_members:
+        await service.agree(
+            circle_id=circle_id,
+            member_id=member.id,
+            contribution_amount_minor=1000,
+            cadence="monthly",
+            start_date=date.today(),
+            payout_rules={"rule": "commit_reveal_order"},
+        )
+
+    await service.lock(circle_id=circle_id, member_id=owner_member.id)
+    member_ids = [member.id for _user, member in users_and_members]
+    salt = "m2-seed-salt"
+    await service.commit_draw(
+        circle_id=circle_id,
+        member_id=owner_member.id,
+        commitment_hash=draw_commitment_hash(circle_id=circle_id, member_ids=member_ids, salt=salt),
+    )
+    await service.reveal_draw(circle_id=circle_id, member_id=owner_member.id, salt=salt)
+    return circle_id
+
+
 async def ensure_seed_user(session: AsyncSession) -> User:
-    result = await session.execute(select(User).where(User.email == SEED_EMAIL))
+    return await ensure_user(session, email=SEED_EMAIL, password=SEED_PASSWORD)
+
+
+async def ensure_user(session: AsyncSession, *, email: str, password: str) -> User:
+    result = await session.execute(select(User).where(User.email == email))
     existing = result.scalar_one_or_none()
     if existing is not None:
         return existing
     user = User(
-        email=SEED_EMAIL,
-        password_hash=hash_password(SEED_PASSWORD),
+        email=email,
+        password_hash=hash_password(password),
     )
     session.add(user)
     await session.flush()
@@ -178,10 +255,12 @@ async def mark_payment_settled(session: AsyncSession, *, payment_object_id: UUID
 async def async_main() -> None:
     async for session in session_scope():
         summary = await seed_m1(session)
+        circle_id = await seed_m2_circle(session)
         print(
             "Seeded M1 wallet demo: "
             f"user={summary.user_id} member={summary.member_id} "
-            f"available_minor={summary.available_minor} pending_minor={summary.pending_minor}"
+            f"available_minor={summary.available_minor} pending_minor={summary.pending_minor} "
+            f"m2_circle={circle_id}"
         )
 
 

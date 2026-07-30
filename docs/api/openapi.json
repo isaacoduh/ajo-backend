@@ -1,8 +1,12 @@
 {
   "components": {
     "schemas": {
-      "AuthMeResponse": {
+      "AuthMeMemberResponse": {
         "properties": {
+          "country": {
+            "title": "Country",
+            "type": "string"
+          },
           "display_name": {
             "anyOf": [
               {
@@ -14,13 +18,9 @@
             ],
             "title": "Display Name"
           },
-          "email": {
-            "title": "Email",
-            "type": "string"
-          },
-          "member_id": {
+          "id": {
             "format": "uuid",
-            "title": "Member Id",
+            "title": "Id",
             "type": "string"
           },
           "screening_state": {
@@ -29,12 +29,914 @@
           }
         },
         "required": [
-          "email",
-          "member_id",
+          "id",
           "display_name",
+          "country",
           "screening_state"
         ],
+        "title": "AuthMeMemberResponse",
+        "type": "object"
+      },
+      "AuthMeResponse": {
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/AuthMeMemberResponse"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthMeUserResponse"
+          }
+        },
+        "required": [
+          "user",
+          "member"
+        ],
         "title": "AuthMeResponse",
+        "type": "object"
+      },
+      "AuthMeUserResponse": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email"
+        ],
+        "title": "AuthMeUserResponse",
+        "type": "object"
+      },
+      "CircleAgreementListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CircleAgreementResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CircleAgreementListResponse",
+        "type": "object"
+      },
+      "CircleAgreementRequest": {
+        "properties": {
+          "cadence": {
+            "default": "monthly",
+            "title": "Cadence",
+            "type": "string"
+          },
+          "contribution_amount_minor": {
+            "exclusiveMinimum": 0.0,
+            "title": "Contribution Amount Minor",
+            "type": "integer"
+          },
+          "payout_rules": {
+            "additionalProperties": true,
+            "title": "Payout Rules",
+            "type": "object"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contribution_amount_minor",
+          "start_date"
+        ],
+        "title": "CircleAgreementRequest",
+        "type": "object"
+      },
+      "CircleAgreementResponse": {
+        "properties": {
+          "accepted_at": {
+            "format": "date-time",
+            "title": "Accepted At",
+            "type": "string"
+          },
+          "cadence": {
+            "title": "Cadence",
+            "type": "string"
+          },
+          "circle_id": {
+            "format": "uuid",
+            "title": "Circle Id",
+            "type": "string"
+          },
+          "contribution_amount_minor": {
+            "title": "Contribution Amount Minor",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "member_id": {
+            "format": "uuid",
+            "title": "Member Id",
+            "type": "string"
+          },
+          "payout_rules": {
+            "additionalProperties": true,
+            "title": "Payout Rules",
+            "type": "object"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "circle_id",
+          "member_id",
+          "contribution_amount_minor",
+          "cadence",
+          "start_date",
+          "payout_rules",
+          "accepted_at"
+        ],
+        "title": "CircleAgreementResponse",
+        "type": "object"
+      },
+      "CircleContributionListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CircleContributionResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CircleContributionListResponse",
+        "type": "object"
+      },
+      "CircleContributionResponse": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "cycle_id": {
+            "format": "uuid",
+            "title": "Cycle Id",
+            "type": "string"
+          },
+          "due_date": {
+            "format": "date",
+            "title": "Due Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "member_id": {
+            "format": "uuid",
+            "title": "Member Id",
+            "type": "string"
+          },
+          "payment_object_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Object Id"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "cycle_id",
+          "member_id",
+          "amount_minor",
+          "status",
+          "due_date",
+          "payment_object_id"
+        ],
+        "title": "CircleContributionResponse",
+        "type": "object"
+      },
+      "CircleCreateRequest": {
+        "properties": {
+          "cadence": {
+            "default": "monthly",
+            "title": "Cadence",
+            "type": "string"
+          },
+          "contribution_amount_minor": {
+            "exclusiveMinimum": 0.0,
+            "title": "Contribution Amount Minor",
+            "type": "integer"
+          },
+          "cycle_count": {
+            "maximum": 32.0,
+            "minimum": 1.0,
+            "title": "Cycle Count",
+            "type": "integer"
+          },
+          "member_count_target": {
+            "maximum": 32.0,
+            "minimum": 2.0,
+            "title": "Member Count Target",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "contribution_amount_minor",
+          "member_count_target",
+          "cycle_count",
+          "start_date"
+        ],
+        "title": "CircleCreateRequest",
+        "type": "object"
+      },
+      "CircleDetailResponse": {
+        "properties": {
+          "agreed_count": {
+            "title": "Agreed Count",
+            "type": "integer"
+          },
+          "cadence": {
+            "title": "Cadence",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "contribution_amount_minor": {
+            "title": "Contribution Amount Minor",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "cycle_count": {
+            "title": "Cycle Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked At"
+          },
+          "member_count": {
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "member_count_target": {
+            "title": "Member Count Target",
+            "type": "integer"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/CircleMemberResponse"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_member_id": {
+            "format": "uuid",
+            "title": "Owner Member Id",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "state",
+          "currency",
+          "contribution_amount_minor",
+          "member_count_target",
+          "cycle_count",
+          "cadence",
+          "start_date",
+          "owner_member_id",
+          "member_count",
+          "agreed_count",
+          "created_at",
+          "locked_at",
+          "completed_at",
+          "members"
+        ],
+        "title": "CircleDetailResponse",
+        "type": "object"
+      },
+      "CircleDrawCommitRequest": {
+        "properties": {
+          "commitment_hash": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Commitment Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commitment_hash"
+        ],
+        "title": "CircleDrawCommitRequest",
+        "type": "object"
+      },
+      "CircleDrawResponse": {
+        "properties": {
+          "circle_id": {
+            "format": "uuid",
+            "title": "Circle Id",
+            "type": "string"
+          },
+          "commitment_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commitment Hash"
+          },
+          "payout_order": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Payout Order",
+            "type": "array"
+          },
+          "revealed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revealed At"
+          },
+          "salt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Salt"
+          }
+        },
+        "required": [
+          "circle_id",
+          "commitment_hash",
+          "salt",
+          "revealed_at",
+          "payout_order"
+        ],
+        "title": "CircleDrawResponse",
+        "type": "object"
+      },
+      "CircleDrawRevealRequest": {
+        "properties": {
+          "salt": {
+            "maxLength": 160,
+            "minLength": 8,
+            "title": "Salt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "salt"
+        ],
+        "title": "CircleDrawRevealRequest",
+        "type": "object"
+      },
+      "CircleInviteRequest": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "expires_in_days": {
+            "default": 7,
+            "maximum": 60.0,
+            "minimum": 1.0,
+            "title": "Expires In Days",
+            "type": "integer"
+          }
+        },
+        "title": "CircleInviteRequest",
+        "type": "object"
+      },
+      "CircleInviteResponse": {
+        "properties": {
+          "circle_id": {
+            "format": "uuid",
+            "title": "Circle Id",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "token": {
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "circle_id",
+          "token",
+          "email",
+          "status",
+          "expires_at"
+        ],
+        "title": "CircleInviteResponse",
+        "type": "object"
+      },
+      "CircleJoinRequest": {
+        "properties": {
+          "token": {
+            "maxLength": 80,
+            "minLength": 16,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "CircleJoinRequest",
+        "type": "object"
+      },
+      "CircleLedgerItemResponse": {
+        "properties": {
+          "account_code": {
+            "title": "Account Code",
+            "type": "string"
+          },
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "journal_entry_id": {
+            "format": "uuid",
+            "title": "Journal Entry Id",
+            "type": "string"
+          },
+          "posting_id": {
+            "format": "uuid",
+            "title": "Posting Id",
+            "type": "string"
+          },
+          "side": {
+            "title": "Side",
+            "type": "string"
+          }
+        },
+        "required": [
+          "posting_id",
+          "journal_entry_id",
+          "created_at",
+          "account_code",
+          "description",
+          "amount_minor",
+          "side"
+        ],
+        "title": "CircleLedgerItemResponse",
+        "type": "object"
+      },
+      "CircleLedgerResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CircleLedgerItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CircleLedgerResponse",
+        "type": "object"
+      },
+      "CircleListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CircleResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CircleListResponse",
+        "type": "object"
+      },
+      "CircleMemberResponse": {
+        "properties": {
+          "joined_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Joined At"
+          },
+          "member_id": {
+            "format": "uuid",
+            "title": "Member Id",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "member_id",
+          "role",
+          "status",
+          "joined_at"
+        ],
+        "title": "CircleMemberResponse",
+        "type": "object"
+      },
+      "CirclePayoutResponse": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "circle_id": {
+            "format": "uuid",
+            "title": "Circle Id",
+            "type": "string"
+          },
+          "cycle_id": {
+            "format": "uuid",
+            "title": "Cycle Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "journal_entry_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Journal Entry Id"
+          },
+          "payment_object_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Object Id"
+          },
+          "recipient_member_id": {
+            "format": "uuid",
+            "title": "Recipient Member Id",
+            "type": "string"
+          },
+          "shortfall_minor": {
+            "title": "Shortfall Minor",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "circle_id",
+          "cycle_id",
+          "recipient_member_id",
+          "amount_minor",
+          "shortfall_minor",
+          "status",
+          "payment_object_id",
+          "journal_entry_id"
+        ],
+        "title": "CirclePayoutResponse",
+        "type": "object"
+      },
+      "CircleRecordsResponse": {
+        "properties": {
+          "arrears_count": {
+            "title": "Arrears Count",
+            "type": "integer"
+          },
+          "arrears_minor": {
+            "title": "Arrears Minor",
+            "type": "integer"
+          },
+          "shortfall_count": {
+            "title": "Shortfall Count",
+            "type": "integer"
+          },
+          "shortfall_minor": {
+            "title": "Shortfall Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "arrears_count",
+          "shortfall_count",
+          "arrears_minor",
+          "shortfall_minor"
+        ],
+        "title": "CircleRecordsResponse",
+        "type": "object"
+      },
+      "CircleResponse": {
+        "properties": {
+          "agreed_count": {
+            "title": "Agreed Count",
+            "type": "integer"
+          },
+          "cadence": {
+            "title": "Cadence",
+            "type": "string"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "contribution_amount_minor": {
+            "title": "Contribution Amount Minor",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "cycle_count": {
+            "title": "Cycle Count",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked At"
+          },
+          "member_count": {
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "member_count_target": {
+            "title": "Member Count Target",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner_member_id": {
+            "format": "uuid",
+            "title": "Owner Member Id",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "state",
+          "currency",
+          "contribution_amount_minor",
+          "member_count_target",
+          "cycle_count",
+          "cadence",
+          "start_date",
+          "owner_member_id",
+          "member_count",
+          "agreed_count",
+          "created_at",
+          "locked_at",
+          "completed_at"
+        ],
+        "title": "CircleResponse",
+        "type": "object"
+      },
+      "CircleStatementResponse": {
+        "properties": {
+          "closing_balance_minor": {
+            "title": "Closing Balance Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "journal_entry_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Journal Entry Ids",
+            "type": "array"
+          },
+          "movement_minor": {
+            "title": "Movement Minor",
+            "type": "integer"
+          },
+          "opening_balance_minor": {
+            "title": "Opening Balance Minor",
+            "type": "integer"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period",
+          "currency",
+          "opening_balance_minor",
+          "movement_minor",
+          "closing_balance_minor",
+          "journal_entry_ids"
+        ],
+        "title": "CircleStatementResponse",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -801,6 +1703,93 @@
         ]
       }
     },
+    "/circles": {
+      "get": {
+        "operationId": "list_circles_circles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Circles",
+        "tags": [
+          "circles"
+        ]
+      },
+      "post": {
+        "operationId": "create_circle_circles_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Circle",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
     "/circles/ping": {
       "get": {
         "operationId": "ping_circles_ping_get",
@@ -817,6 +1806,1049 @@
           }
         },
         "summary": "Ping",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}": {
+      "get": {
+        "operationId": "circle_detail_circles__circle_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Circle Detail",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/agreement": {
+      "get": {
+        "operationId": "agreements_circles__circle_id__agreement_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleAgreementListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Agreements",
+        "tags": [
+          "circles"
+        ]
+      },
+      "post": {
+        "operationId": "agree_terms_circles__circle_id__agreement_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleAgreementRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleAgreementResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Agree Terms",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/collect-due": {
+      "post": {
+        "operationId": "collect_due_circles__circle_id__collect_due_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleContributionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Collect Due",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/complete": {
+      "post": {
+        "operationId": "complete_circles__circle_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Complete",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/contributions": {
+      "get": {
+        "operationId": "contributions_circles__circle_id__contributions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleContributionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Contributions",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/contributions/{contribution_id}/fail-late": {
+      "post": {
+        "operationId": "fail_late_circles__circle_id__contributions__contribution_id__fail_late_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "contribution_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Contribution Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleContributionListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Fail Late",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/cycles/{cycle_id}/payout": {
+      "post": {
+        "operationId": "payout_cycle_circles__circle_id__cycles__cycle_id__payout_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "cycle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Cycle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CirclePayoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Payout Cycle",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/draw": {
+      "get": {
+        "operationId": "draw_detail_circles__circle_id__draw_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDrawResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Draw Detail",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/draw/commit": {
+      "post": {
+        "operationId": "commit_draw_circles__circle_id__draw_commit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleDrawCommitRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDrawResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Commit Draw",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/draw/reveal": {
+      "post": {
+        "operationId": "reveal_draw_circles__circle_id__draw_reveal_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleDrawRevealRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDrawResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Reveal Draw",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/invites": {
+      "post": {
+        "operationId": "create_invite_circles__circle_id__invites_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleInviteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Invite",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/join": {
+      "post": {
+        "operationId": "join_circle_circles__circle_id__join_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleJoinRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Join Circle",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/ledger": {
+      "get": {
+        "operationId": "circle_ledger_circles__circle_id__ledger_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleLedgerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Circle Ledger",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/lock": {
+      "post": {
+        "operationId": "lock_circle_circles__circle_id__lock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Idempotency-Key header is required."
+          },
+          "409": {
+            "description": "A request with this Idempotency-Key is already in progress."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Lock Circle",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/records": {
+      "get": {
+        "operationId": "records_circles__circle_id__records_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleRecordsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Records",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/circles/{circle_id}/statements/{period}": {
+      "get": {
+        "operationId": "circle_statement_circles__circle_id__statements__period__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "circle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Circle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "title": "Period",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircleStatementResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Circle Statement",
         "tags": [
           "circles"
         ]

@@ -50,7 +50,17 @@ The member wallet balance is ledger-derived:
 - pending balance = `member:{member_id}:wallet:pending:gbp.balance_minor`.
 - available balance = `member:{member_id}:wallet:available:gbp.balance_minor`.
 
-No circle, contribution, arrears, or cross-circle accounts are introduced in M1.
+Circle accounts introduced in M2:
+
+- `circle:{circle_id}:collected:gbp` - liability account for funds collected for
+  exactly one circle.
+- `circle:{circle_id}:arrears:gbp` - asset account for member arrears created by
+  a late failed contribution in exactly one circle.
+- `circle:{circle_id}:shortfall:gbp` - expense account used to classify circle
+  shortfall records for exactly one circle.
+
+Circle account codes always include `circle_id`; member wallet accounts are not
+used as hidden circle balances.
 
 ## Invariants
 
@@ -159,11 +169,47 @@ inverted from the original entry. The reversing entry links to the original via
 
 Never update or delete journal entries or postings.
 
-### Future Circle Recipes
+### Circle Account Provisioning
 
-Circle contribution, payout, fee, arrears, and shortfall recipes are intentionally
-left for M2. They must use circle-scoped account codes and must not reuse member
-wallet pending or available accounts as hidden circle balances.
+Locking a circle provisions accounts idempotently:
+
+- `platform:settlement:gbp` as an asset account.
+- `circle:{circle_id}:collected:gbp` as a liability account.
+- `circle:{circle_id}:arrears:gbp` as an asset account.
+- `circle:{circle_id}:shortfall:gbp` as an expense account.
+
+Provisioning does not post a journal entry.
+
+### Circle Contribution Collected
+
+When FakeRail accepts a due contribution collection:
+
+- Debit: `platform:settlement:gbp`.
+- Credit: `circle:{circle_id}:collected:gbp`.
+
+The contribution row stores the payment object and journal references. The
+idempotency key is derived from circle and contribution IDs.
+
+### Circle Payout
+
+When a cycle pays out collected funds to the recipient:
+
+- Debit: `circle:{circle_id}:collected:gbp`.
+- Credit: `platform:settlement:gbp`.
+
+The payout amount is the collected amount for the cycle. If less than the
+expected amount was collected, a shortfall record is persisted.
+
+### Circle Late Failure
+
+When a previously paid contribution fails late:
+
+- Debit: `circle:{circle_id}:arrears:gbp`.
+- Credit: `platform:settlement:gbp`.
+
+The contribution moves to `late_failed`. The service records both an arrears row
+for the member and a shortfall row for the circle/cycle. This preserves ledger
+balance even when the late failure arrives after payout.
 
 ## Replay
 

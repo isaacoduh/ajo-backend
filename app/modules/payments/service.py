@@ -62,6 +62,14 @@ class PaymentsService:
         await self.repo.upsert_payment_object(flow=PaymentFlow.COLLECTION, result=result)
         return result
 
+    async def create_collection_object(
+        self,
+        rail: PaymentRailPort,
+        request: CollectionRequest,
+    ) -> PaymentObject:
+        result = await rail.collect(request)
+        return await self.repo.upsert_payment_object(flow=PaymentFlow.COLLECTION, result=result)
+
     async def send_payout(
         self,
         rail: PaymentRailPort,

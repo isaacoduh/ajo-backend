@@ -19,6 +19,7 @@
 - Refresh endpoint: `POST /auth/refresh`.
 - Logout endpoint: `POST /auth/logout`.
 - Logout-all endpoint: `POST /auth/logout-all`.
+- Authenticated profile endpoint: `GET /auth/me`.
 - JWT access-token foundation.
 - Refresh-token family rotation.
 - Refresh-token replay protection.
@@ -47,6 +48,22 @@
 - Failed job persistence.
 - Circle module skeleton.
 - Circle ping endpoint: `GET /circles/ping`.
+- Member domain profile.
+- Wallet provisioning.
+- Wallet balance endpoint: `GET /wallet/balance`.
+- Wallet activity endpoint: `GET /wallet/activity`.
+- Wallet top-up endpoint: `POST /wallet/topups`.
+- Wallet withdrawal endpoint: `POST /wallet/withdrawals`.
+- Statement endpoint: `GET /statements/{period}`.
+- M1 seed/demo flow.
+- Minimal OpenTelemetry foundation.
+- M2 circle models and migrations.
+- Circle create/list/detail endpoints.
+- Circle invite and join endpoints.
+- Circle agreement and lock flow.
+- Circle commit-reveal draw and schedule generation.
+- FakeRail-backed circle collection and payout endpoints.
+- Circle late-failure, arrears, shortfall, ledger, statement, and completion endpoints.
 - Generated OpenAPI export.
 - Local Docker Compose workflow.
 - Railway deployment runbook.
@@ -58,34 +75,19 @@
 
 ## Backend Remaining
 
-- Real circle lifecycle endpoints.
-- Circle member onboarding workflows.
-- Circle invite and join flows.
-- Circle contribution schedule logic.
-- Circle payout order and draw workflow.
-- Wallet balance endpoint.
-- Wallet activity endpoint.
-- Wallet top-up endpoint.
-- Wallet withdrawal endpoint.
-- Contribution collection endpoints.
-- Payout endpoints.
-- Member-facing ledger endpoints.
-- Statement endpoints.
+- Realistic 8-member circle seed/reset command.
 - Real KYC provider integration.
 - Real payment provider integrations.
 - Provider-specific webhook routes.
 - Production deployment automation.
-- Seed/showcase data command.
 - Full seeded reset implementation tied to product data.
-- Frontend-specific API coverage for all PM screens.
+- Full M7 frontend coverage for all PM screens.
 
 ## Frontend Dependency Notes
 
-- Frontend can currently use auth endpoints only.
-- Frontend cannot yet build the full wallet journey from backend APIs.
-- Frontend cannot yet build the full circle journey from backend APIs.
-- Frontend cannot yet build ledger or statement screens from backend APIs.
-- Frontend can use `/healthz`, `/readyz`, `/auth/*`, and `/circles/ping`.
+- Frontend can use `/healthz`, `/readyz`, `/auth/*`, wallet M1 endpoints, and core `/circles/*` M2 endpoints.
+- Frontend currently implements a minimal authenticated dashboard, create-circle flow, and circle detail shell.
+- Full M7 circle operations UI remains out of scope.
 
 ## Deployment Readiness
 

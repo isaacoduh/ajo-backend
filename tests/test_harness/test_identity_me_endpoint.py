@@ -78,10 +78,16 @@ async def test_auth_me_returns_user_and_member_profile(
 
     assert response.status_code == 200
     assert response.json() == {
-        "email": "me@example.com",
-        "member_id": str(member.id),
-        "display_name": "Ada Adebayo",
-        "screening_state": "clear",
+        "user": {
+            "id": str(user.id),
+            "email": "me@example.com",
+        },
+        "member": {
+            "id": str(member.id),
+            "display_name": "Ada Adebayo",
+            "country": "GB",
+            "screening_state": "clear",
+        },
     }
 
 
@@ -105,8 +111,14 @@ async def test_auth_me_does_not_require_idempotency_key(
 
     assert response.status_code == 200
     assert response.json() == {
-        "email": "no-idempotency@example.com",
-        "member_id": str(member.id),
-        "display_name": None,
-        "screening_state": "pending",
+        "user": {
+            "id": str(user.id),
+            "email": "no-idempotency@example.com",
+        },
+        "member": {
+            "id": str(member.id),
+            "display_name": None,
+            "country": "GB",
+            "screening_state": "pending",
+        },
     }

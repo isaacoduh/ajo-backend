@@ -11,7 +11,9 @@ from app.modules.identity.deps import get_current_user
 from app.modules.identity.models import User
 from app.modules.identity.repo import IdentityRepo
 from app.modules.identity.schemas import (
+    AuthMeMemberResponse,
     AuthMeResponse,
+    AuthMeUserResponse,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
@@ -71,10 +73,13 @@ async def me(
 ) -> AuthMeResponse:
     member = await members_service.get_current_member(user_id=current_user.id)
     return AuthMeResponse(
-        email=current_user.email,
-        member_id=member.id,
-        display_name=member.display_name,
-        screening_state=member.screening_state,
+        user=AuthMeUserResponse(id=current_user.id, email=current_user.email),
+        member=AuthMeMemberResponse(
+            id=member.id,
+            display_name=member.display_name,
+            country=member.country,
+            screening_state=member.screening_state,
+        ),
     )
 
 
