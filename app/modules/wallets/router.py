@@ -13,6 +13,7 @@ from app.modules.wallets.schemas import (
     WalletActivityItemResponse,
     WalletActivityResponse,
     WalletBalanceResponse,
+    WalletProviderActionResponse,
     WalletStatementResponse,
     WalletTopupRequest,
     WalletTopupResponse,
@@ -103,6 +104,14 @@ async def create_topup(
         amount_minor=topup.amount_minor,
         currency=topup.currency,
         state=topup.state,
+        provider_action=(
+            WalletProviderActionResponse(
+                type=topup.provider_action.type,
+                client_secret=topup.provider_action.client_secret,
+            )
+            if topup.provider_action is not None
+            else None
+        ),
     )
 
 

@@ -11,6 +11,7 @@ from app.modules.payments.models import PaymentObject
 from app.modules.payments.registry import PaymentRailRegistry
 from app.modules.payments.repo import PaymentsRepo
 from app.modules.payments.service import PaymentsService
+from app.modules.payments.types import ProviderName, RailOperationResult, SettlementState
 from app.modules.wallets.repo import WalletsRepo
 from app.modules.wallets.service import (
     PLATFORM_SETTLEMENT_ACCOUNT_CODE,
@@ -42,6 +43,22 @@ def wallet_service(db_session: AsyncSession) -> WalletService:
         PaymentsService(PaymentsRepo(db_session)),
         PaymentRailRegistry({"fake": FakeRail()}),
     )
+
+
+class StripeLikeTopupRail:
+    provider = "stripe"
+
+    async def create_topup(self, request: object) -> RailOperationResult:
+        _ = request
+        return RailOperationResult(
+            provider=ProviderName.STRIPE,
+            provider_object_id="pi_frontend_ready",
+            idempotency_key="wallet-topup-stripe-action",
+            state=SettlementState.INITIATED,
+            amount_minor=2000,
+            currency="GBP",
+            provider_metadata={"client_secret": "pi_frontend_ready_secret_test"},
+        )
 
 
 @pytest.mark.asyncio
@@ -111,6 +128,33 @@ async def test_wallet_topup_retry_returns_same_payment_object_without_reposting(
     assert second.id == first.id
     assert second.journal_entry_id == first.journal_entry_id
     assert journal_count == 1
+
+
+@pytest.mark.asyncio
+async def test_wallet_topup_exposes_stripe_provider_action(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    user, member = await create_member_user(db_session, email="topup-stripe-action@example.com")
+    service = WalletService(
+        WalletsRepo(db_session),
+        LedgerService(db_session),
+        PaymentsService(PaymentsRepo(db_session)),
+        PaymentRailRegistry({"fake": StripeLikeTopupRail()}),  # type: ignore[dict-item]
+    )
+
+    result = await service.create_topup(
+        member_id=member.id,
+        user_id=user.id,
+        amount_minor=2000,
+        currency="GBP",
+        idempotency_key="wallet-topup-stripe-action",
+    )
+
+    assert result.provider_action is not None
+    assert result.provider_action.type == "stripe_payment_intent"
+    assert result.provider_action.client_secret == "pi_frontend_ready_secret_test"
 
 
 @pytest.mark.asyncio

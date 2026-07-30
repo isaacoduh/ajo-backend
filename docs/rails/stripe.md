@@ -53,6 +53,10 @@ onboarding also requires both Connect return URLs.
 
 - Top-up: creates a Stripe PaymentIntent using the internal idempotency key as
   Stripe's `Idempotency-Key`.
+- Frontend handoff: wallet top-up responses include
+  `provider_action.type=stripe_payment_intent` and the PaymentIntent
+  `client_secret` so the frontend can mount Stripe Elements without exposing
+  provider details elsewhere.
 - Webhooks: verifies Stripe HMAC signatures, persists raw events, dedupes by
   event ID, then mirrors current provider state.
 - Reconciliation: lists recent PaymentIntents and compares provider state against
@@ -103,6 +107,11 @@ identify the provider object, then calls Stripe for the current state.
 | `succeeded` | `settled` |
 | `canceled` | `failed` |
 | unknown status | `processing` |
+
+The backend creates new PaymentIntents with
+`automatic_payment_methods[allow_redirects]=never` for the current frontend
+handoff path. If redirect-based methods are added later, the frontend must own a
+real return URL and the rail docs should be updated with that redirect flow.
 
 Stripe PaymentIntents do not map to `failed_late` in this pass. Bacs-style late
 failure behavior remains represented by FakeRail and future debit rails.

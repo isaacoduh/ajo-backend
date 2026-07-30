@@ -108,6 +108,7 @@ class StripeRail:
                 "amount": str(request.amount_minor),
                 "currency": request.currency.lower(),
                 "automatic_payment_methods[enabled]": "true",
+                "automatic_payment_methods[allow_redirects]": "never",
                 "metadata[user_id]": request.user_id,
                 "metadata[idempotency_key]": request.idempotency_key,
                 "metadata[ajo_flow]": "topup",

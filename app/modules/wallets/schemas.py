@@ -33,11 +33,17 @@ class WalletTopupRequest(BaseModel):
     currency: str
 
 
+class WalletProviderActionResponse(BaseModel):
+    type: str
+    client_secret: str
+
+
 class WalletTopupResponse(BaseModel):
     id: UUID
     amount_minor: int
     currency: str
     state: str
+    provider_action: WalletProviderActionResponse | None = None
 
 
 class WalletWithdrawalRequest(BaseModel):

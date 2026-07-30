@@ -65,12 +65,19 @@ class WalletActivityPage:
 
 
 @dataclass(frozen=True)
+class WalletProviderAction:
+    type: str
+    client_secret: str
+
+
+@dataclass(frozen=True)
 class WalletTopupResult:
     id: UUID
     amount_minor: int
     currency: str
     state: str
     journal_entry_id: UUID | None
+    provider_action: WalletProviderAction | None = None
 
 
 @dataclass(frozen=True)
@@ -545,6 +552,20 @@ def wallet_topup_result(payment_object: PaymentObject) -> WalletTopupResult:
         currency=payment_object.currency,
         state=payment_object.state,
         journal_entry_id=payment_object.journal_entry_id,
+        provider_action=wallet_provider_action(payment_object),
+    )
+
+
+def wallet_provider_action(payment_object: PaymentObject) -> WalletProviderAction | None:
+    if payment_object.provider != "stripe":
+        return None
+    metadata = payment_object.provider_metadata or {}
+    client_secret = metadata.get("client_secret")
+    if not isinstance(client_secret, str) or not client_secret:
+        return None
+    return WalletProviderAction(
+        type="stripe_payment_intent",
+        client_secret=client_secret,
     )
 
 

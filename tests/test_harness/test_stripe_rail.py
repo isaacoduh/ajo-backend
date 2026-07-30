@@ -119,6 +119,7 @@ async def test_stripe_topup_creates_payment_intent_with_idempotency_key() -> Non
     assert seen["authorization"] == "Bearer sk_test_123"
     assert seen["idempotency_key"] == "stripe-topup-key"
     assert "amount=1250" in str(seen["body"])
+    assert "automatic_payment_methods%5Ballow_redirects%5D=never" in str(seen["body"])
     assert "metadata%5Bajo_flow%5D=topup" in str(seen["body"])
 
 

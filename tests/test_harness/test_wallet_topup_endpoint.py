@@ -133,6 +133,7 @@ async def test_wallet_topup_endpoint_creates_payment_and_pending_balance(
     assert body["amount_minor"] == 2500
     assert body["currency"] == "GBP"
     assert body["state"] == "initiated"
+    assert body["provider_action"] is None
     assert balance.status_code == 200
     assert balance.json() == {
         "currency": "GBP",

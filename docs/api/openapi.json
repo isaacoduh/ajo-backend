@@ -1259,6 +1259,24 @@
         "title": "WalletBalanceResponse",
         "type": "object"
       },
+      "WalletProviderActionResponse": {
+        "properties": {
+          "client_secret": {
+            "title": "Client Secret",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "client_secret"
+        ],
+        "title": "WalletProviderActionResponse",
+        "type": "object"
+      },
       "WalletStatementResponse": {
         "properties": {
           "closing_balance_minor": {
@@ -1334,6 +1352,16 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "provider_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WalletProviderActionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "state": {
             "title": "State",
