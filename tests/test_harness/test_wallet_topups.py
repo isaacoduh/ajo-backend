@@ -61,6 +61,22 @@ class StripeLikeTopupRail:
         )
 
 
+class TrueLayerLikeTopupRail:
+    provider = "truelayer"
+
+    async def create_topup(self, request: object) -> RailOperationResult:
+        _ = request
+        return RailOperationResult(
+            provider=ProviderName.TRUELAYER,
+            provider_object_id="pay_frontend_ready",
+            idempotency_key="wallet-topup-truelayer-action",
+            state=SettlementState.INITIATED,
+            amount_minor=3000,
+            currency="GBP",
+            provider_metadata={"hosted_page_uri": "https://payment.truelayer.test/hosted/pay"},
+        )
+
+
 @pytest.mark.asyncio
 async def test_wallet_topup_posts_pending_ledger_recipe(
     test_env: None,
@@ -155,6 +171,35 @@ async def test_wallet_topup_exposes_stripe_provider_action(
     assert result.provider_action is not None
     assert result.provider_action.type == "stripe_payment_intent"
     assert result.provider_action.client_secret == "pi_frontend_ready_secret_test"
+    assert result.provider_action.redirect_url is None
+
+
+@pytest.mark.asyncio
+async def test_wallet_topup_exposes_truelayer_redirect_action(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    user, member = await create_member_user(db_session, email="topup-truelayer-action@example.com")
+    service = WalletService(
+        WalletsRepo(db_session),
+        LedgerService(db_session),
+        PaymentsService(PaymentsRepo(db_session)),
+        PaymentRailRegistry({"fake": TrueLayerLikeTopupRail()}),  # type: ignore[dict-item]
+    )
+
+    result = await service.create_topup(
+        member_id=member.id,
+        user_id=user.id,
+        amount_minor=3000,
+        currency="GBP",
+        idempotency_key="wallet-topup-truelayer-action",
+    )
+
+    assert result.provider_action is not None
+    assert result.provider_action.type == "truelayer_hosted_payment"
+    assert result.provider_action.client_secret is None
+    assert result.provider_action.redirect_url == "https://payment.truelayer.test/hosted/pay"
 
 
 @pytest.mark.asyncio

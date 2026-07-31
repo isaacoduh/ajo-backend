@@ -108,6 +108,7 @@ async def create_topup(
             WalletProviderActionResponse(
                 type=topup.provider_action.type,
                 client_secret=topup.provider_action.client_secret,
+                redirect_url=topup.provider_action.redirect_url,
             )
             if topup.provider_action is not None
             else None

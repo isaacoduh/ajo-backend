@@ -22,6 +22,7 @@ dependencies = [
     "redis>=5.0",
     "sqlalchemy[asyncio]>=2.0",
     "structlog>=24.1",
+    "truelayer-signing>=0.4.0",
     "uvicorn[standard]>=0.30",
 ]
 
@@ -97,6 +98,7 @@ filterwarnings = [
 markers = [
     "containers: tests requiring Docker testcontainers",
     "stripe: tests covering the Stripe payment rail",
+    "truelayer: tests covering the TrueLayer payment rail",
 ]
 
 [tool.importlinter]

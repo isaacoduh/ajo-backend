@@ -35,7 +35,8 @@ class WalletTopupRequest(BaseModel):
 
 class WalletProviderActionResponse(BaseModel):
     type: str
-    client_secret: str
+    client_secret: str | None = None
+    redirect_url: str | None = None
 
 
 class WalletTopupResponse(BaseModel):

@@ -32,6 +32,7 @@ class PaymentFlow(StrEnum):
 class ProviderName(StrEnum):
     FAKE = "fake"
     STRIPE = "stripe"
+    TRUELAYER = "truelayer"
 
 
 @dataclass(frozen=True)

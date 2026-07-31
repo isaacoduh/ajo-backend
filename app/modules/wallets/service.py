@@ -67,7 +67,8 @@ class WalletActivityPage:
 @dataclass(frozen=True)
 class WalletProviderAction:
     type: str
-    client_secret: str
+    client_secret: str | None = None
+    redirect_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -636,16 +637,24 @@ def wallet_topup_result(payment_object: PaymentObject) -> WalletTopupResult:
 
 
 def wallet_provider_action(payment_object: PaymentObject) -> WalletProviderAction | None:
-    if payment_object.provider != "stripe":
-        return None
     metadata = payment_object.provider_metadata or {}
-    client_secret = metadata.get("client_secret")
-    if not isinstance(client_secret, str) or not client_secret:
-        return None
-    return WalletProviderAction(
-        type="stripe_payment_intent",
-        client_secret=client_secret,
-    )
+    if payment_object.provider == "stripe":
+        client_secret = metadata.get("client_secret")
+        if not isinstance(client_secret, str) or not client_secret:
+            return None
+        return WalletProviderAction(
+            type="stripe_payment_intent",
+            client_secret=client_secret,
+        )
+    if payment_object.provider == "truelayer":
+        redirect_url = metadata.get("hosted_page_uri")
+        if not isinstance(redirect_url, str) or not redirect_url:
+            return None
+        return WalletProviderAction(
+            type="truelayer_hosted_payment",
+            redirect_url=redirect_url,
+        )
+    return None
 
 
 def wallet_withdrawal_result(payment_object: PaymentObject) -> WalletWithdrawalResult:

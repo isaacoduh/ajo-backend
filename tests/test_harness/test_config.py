@@ -62,6 +62,9 @@ def test_settings_startup_summary_is_redacted(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setenv("REDIS_URL", "redis://:redis-password@localhost:6379/0")
     monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
     monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
+    monkeypatch.setenv("RAIL_TOPUP", "fake")
+    monkeypatch.setenv("RAIL_COLLECTION", "fake")
+    monkeypatch.setenv("RAIL_PAYOUT", "fake")
 
     summary = Settings().redacted_startup_summary()
 
@@ -116,3 +119,44 @@ def test_settings_rejects_stripe_rail_without_secret_key(
 
     with pytest.raises(ValidationError, match="STRIPE_SECRET_KEY is required"):
         Settings()
+
+
+def test_settings_accepts_truelayer_topup_rail(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ENV", "local")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
+    monkeypatch.setenv("RAIL_TOPUP", "truelayer")
+    monkeypatch.setenv("TRUELAYER_CLIENT_ID", "tl-client-id")
+    monkeypatch.setenv("TRUELAYER_CLIENT_SECRET", "tl-client-secret")
+    monkeypatch.setenv("TRUELAYER_KEY_ID", "tl-key-id")
+    monkeypatch.setenv("TRUELAYER_PRIVATE_KEY_PEM_B64", "cHJpdmF0ZS1rZXk=")
+    monkeypatch.setenv("TRUELAYER_MERCHANT_ACCOUNT_ID", "ma_test_123")
+    monkeypatch.setenv("TRUELAYER_REDIRECT_URI", "https://app.test/wallet/topups/return")
+
+    settings = Settings()
+
+    assert settings.rail_topup.value == "truelayer"
+    assert settings.truelayer_client_secret is not None
+
+
+def test_settings_rejects_truelayer_rail_without_required_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ENV", "local")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://ajo:ajo@localhost:5432/ajo")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    monkeypatch.setenv("JWT_ACCESS_SECRET", "local-only-access-secret-32-bytes")
+    monkeypatch.setenv("REFRESH_TOKEN_PEPPER", "local-only-refresh-pepper-32-bytes")
+    monkeypatch.setenv("RAIL_TOPUP", "truelayer")
+
+    with pytest.raises(ValidationError, match="TrueLayer rail requires"):
+        Settings(
+            TRUELAYER_CLIENT_ID="",
+            TRUELAYER_CLIENT_SECRET="",
+            TRUELAYER_KEY_ID="",
+            TRUELAYER_PRIVATE_KEY_PEM_B64="",
+            TRUELAYER_MERCHANT_ACCOUNT_ID="",
+            TRUELAYER_REDIRECT_URI="",
+        )

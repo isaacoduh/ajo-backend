@@ -25,6 +25,7 @@ class Environment(StrEnum):
 class RailName(StrEnum):
     FAKE = "fake"
     STRIPE = "stripe"
+    TRUELAYER = "truelayer"
 
 
 LIVE_SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -90,6 +91,30 @@ class Settings(BaseSettings):
         alias="STRIPE_CONNECT_RETURN_URL",
     )
 
+    truelayer_client_id: str | None = Field(default=None, alias="TRUELAYER_CLIENT_ID")
+    truelayer_client_secret: SecretStr | None = Field(
+        default=None,
+        alias="TRUELAYER_CLIENT_SECRET",
+    )
+    truelayer_key_id: str | None = Field(default=None, alias="TRUELAYER_KEY_ID")
+    truelayer_private_key_pem_b64: SecretStr | None = Field(
+        default=None,
+        alias="TRUELAYER_PRIVATE_KEY_PEM_B64",
+    )
+    truelayer_merchant_account_id: str | None = Field(
+        default=None,
+        alias="TRUELAYER_MERCHANT_ACCOUNT_ID",
+    )
+    truelayer_redirect_uri: str | None = Field(default=None, alias="TRUELAYER_REDIRECT_URI")
+    truelayer_api_base_url: str = Field(
+        default="https://api.truelayer-sandbox.com",
+        alias="TRUELAYER_API_BASE_URL",
+    )
+    truelayer_auth_base_url: str = Field(
+        default="https://auth.truelayer-sandbox.com",
+        alias="TRUELAYER_AUTH_BASE_URL",
+    )
+
     smtp_host: str = Field(default="mailpit", alias="SMTP_HOST")
     smtp_port: int = Field(default=1025, alias="SMTP_PORT")
 
@@ -117,10 +142,16 @@ class Settings(BaseSettings):
         "stripe_webhook_secret",
         "stripe_connect_refresh_url",
         "stripe_connect_return_url",
+        "truelayer_client_id",
+        "truelayer_client_secret",
+        "truelayer_key_id",
+        "truelayer_private_key_pem_b64",
+        "truelayer_merchant_account_id",
+        "truelayer_redirect_uri",
         mode="before",
     )
     @classmethod
-    def blank_stripe_values_are_unset(cls, value: object) -> object:
+    def blank_money_rail_values_are_unset(cls, value: object) -> object:
         if value == "":
             return None
         return value
@@ -153,6 +184,26 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Stripe Connect onboarding requires STRIPE_CONNECT_REFRESH_URL "
                 "and STRIPE_CONNECT_RETURN_URL"
+            )
+        truelayer_selected = RailName.TRUELAYER in {
+            self.rail_topup,
+            self.rail_collection,
+            self.rail_payout,
+        }
+        if truelayer_selected and not all(
+            (
+                self.truelayer_client_id,
+                self.truelayer_client_secret,
+                self.truelayer_key_id,
+                self.truelayer_private_key_pem_b64,
+                self.truelayer_merchant_account_id,
+                self.truelayer_redirect_uri,
+            )
+        ):
+            raise ValueError(
+                "TrueLayer rail requires TRUELAYER_CLIENT_ID, TRUELAYER_CLIENT_SECRET, "
+                "TRUELAYER_KEY_ID, TRUELAYER_PRIVATE_KEY_PEM_B64, "
+                "TRUELAYER_MERCHANT_ACCOUNT_ID, and TRUELAYER_REDIRECT_URI"
             )
         return self
 

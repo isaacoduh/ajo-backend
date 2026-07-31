@@ -1262,8 +1262,26 @@
       "WalletProviderActionResponse": {
         "properties": {
           "client_secret": {
-            "title": "Client Secret",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
           },
           "type": {
             "title": "Type",
@@ -1271,8 +1289,7 @@
           }
         },
         "required": [
-          "type",
-          "client_secret"
+          "type"
         ],
         "title": "WalletProviderActionResponse",
         "type": "object"
@@ -2927,6 +2944,31 @@
           }
         },
         "summary": "Stripe Webhook",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/payments/webhooks/truelayer": {
+      "post": {
+        "operationId": "truelayer_webhook_payments_webhooks_truelayer_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Truelayer Webhook Payments Webhooks Truelayer Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Truelayer Webhook",
         "tags": [
           "payments"
         ]
