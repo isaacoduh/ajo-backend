@@ -122,3 +122,98 @@ async def test_auth_me_does_not_require_idempotency_key(
             "screening_state": "pending",
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_update_auth_me_updates_display_name(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    user, member = await create_member_user(db_session)
+    app = app_for_session(db_session)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.patch(
+            "/auth/me",
+            headers={**auth_headers(user), "Idempotency-Key": "update-me-display-name"},
+            json={"display_name": "  Ada   Lovelace  "},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["member"] == {
+        "id": str(member.id),
+        "display_name": "Ada Lovelace",
+        "country": "GB",
+        "screening_state": "clear",
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_auth_me_updates_supported_country(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    user, member = await create_member_user(db_session)
+    app = app_for_session(db_session)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.patch(
+            "/auth/me",
+            headers={**auth_headers(user), "Idempotency-Key": "update-me-country"},
+            json={"country": "gb"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["member"] == {
+        "id": str(member.id),
+        "display_name": "Ada Adebayo",
+        "country": "GB",
+        "screening_state": "clear",
+    }
+
+
+@pytest.mark.asyncio
+async def test_update_auth_me_rejects_unauthenticated_request(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    app = app_for_session(db_session)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.patch(
+            "/auth/me",
+            headers={"Idempotency-Key": "update-me-unauthenticated"},
+            json={"display_name": "Ada Lovelace"},
+        )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_update_auth_me_rejects_forbidden_fields(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    user, _member = await create_member_user(db_session)
+    app = app_for_session(db_session)
+    transport = httpx.ASGITransport(app=app)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.patch(
+            "/auth/me",
+            headers={**auth_headers(user), "Idempotency-Key": "update-me-forbidden"},
+            json={
+                "email": "new@example.com",
+                "screening_state": "clear",
+                "wallet_id": "not-allowed",
+            },
+        )
+
+    assert response.status_code == 422

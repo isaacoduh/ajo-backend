@@ -1,6 +1,7 @@
 """Identity API routes."""
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,11 +15,15 @@ from app.modules.identity.schemas import (
     AuthMeMemberResponse,
     AuthMeResponse,
     AuthMeUserResponse,
+    ChangePasswordRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
     RegisterRequest,
+    SessionResponse,
+    SessionsResponse,
     TokenPairResponse,
+    UpdateMeRequest,
     UserResponse,
 )
 from app.modules.identity.service import IdentityService, TokenPair
@@ -83,6 +88,35 @@ async def me(
     )
 
 
+@router.patch("/me", response_model=AuthMeResponse)
+async def update_me(
+    payload: UpdateMeRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    members_service: Annotated[MembersService, Depends(get_members_service_dep)],
+) -> AuthMeResponse:
+    await enforce_rate_limit(identity=str(current_user.id), rate_limit=USER_WRITE_RATE_LIMIT)
+    if "display_name" in payload.model_fields_set:
+        member = await members_service.update_current_member_profile(
+            user_id=current_user.id,
+            display_name=payload.display_name,
+            country=payload.country,
+        )
+    else:
+        member = await members_service.update_current_member_profile(
+            user_id=current_user.id,
+            country=payload.country,
+        )
+    return AuthMeResponse(
+        user=AuthMeUserResponse(id=current_user.id, email=current_user.email),
+        member=AuthMeMemberResponse(
+            id=member.id,
+            display_name=member.display_name,
+            country=member.country,
+            screening_state=member.screening_state,
+        ),
+    )
+
+
 @router.post("/refresh", response_model=TokenPairResponse)
 async def refresh(
     payload: RefreshRequest,
@@ -106,6 +140,52 @@ async def logout_all(
 ) -> None:
     await enforce_rate_limit(identity=str(current_user.id), rate_limit=USER_WRITE_RATE_LIMIT)
     await service.logout_all(user_id=current_user.id)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[IdentityService, Depends(get_identity_service)],
+) -> None:
+    await enforce_rate_limit(identity=str(current_user.id), rate_limit=USER_WRITE_RATE_LIMIT)
+    await service.change_password(
+        user_id=current_user.id,
+        current_password=payload.current_password,
+        new_password=payload.new_password,
+    )
+
+
+@router.get("/sessions", response_model=SessionsResponse)
+async def list_sessions(
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[IdentityService, Depends(get_identity_service)],
+) -> SessionsResponse:
+    sessions = await service.list_sessions(user_id=current_user.id)
+    return SessionsResponse(
+        sessions=[
+            SessionResponse(
+                id=session.id,
+                family_id=session.family_id,
+                created_at=session.created_at,
+                expires_at=session.expires_at,
+                used_at=session.used_at,
+                revoked_at=session.revoked_at,
+                active=session.active,
+            )
+            for session in sessions
+        ]
+    )
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_session(
+    session_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[IdentityService, Depends(get_identity_service)],
+) -> None:
+    await enforce_rate_limit(identity=str(current_user.id), rate_limit=USER_WRITE_RATE_LIMIT)
+    await service.revoke_session(user_id=current_user.id, session_id=session_id)
 
 
 def token_pair_response(token_pair: TokenPair) -> TokenPairResponse:

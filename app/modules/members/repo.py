@@ -38,3 +38,15 @@ class MembersRepo:
         member.screening_state = screening_state
         await self.session.flush()
         return member
+
+    async def update_profile(
+        self,
+        member: Member,
+        *,
+        display_name: str | None,
+        country: str,
+    ) -> Member:
+        member.display_name = display_name
+        member.country = country
+        await self.session.flush()
+        return member

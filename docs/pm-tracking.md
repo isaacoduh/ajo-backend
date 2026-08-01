@@ -20,9 +20,14 @@
 - Logout endpoint: `POST /auth/logout`.
 - Logout-all endpoint: `POST /auth/logout-all`.
 - Authenticated profile endpoint: `GET /auth/me`.
+- Authenticated profile update endpoint for demo-safe fields: `PATCH /auth/me`.
+- Authenticated change-password endpoint: `POST /auth/change-password`.
+- Authenticated session list endpoint: `GET /auth/sessions`.
+- Authenticated single-session revoke endpoint: `DELETE /auth/sessions/{session_id}`.
 - JWT access-token foundation.
 - Refresh-token family rotation.
 - Refresh-token replay protection.
+- Password changes revoke refresh-token sessions and increment `token_version` to invalidate old access tokens.
 - Password hashing.
 - Screening port.
 - Always-clear screening implementation.

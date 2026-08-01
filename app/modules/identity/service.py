@@ -1,6 +1,7 @@
 """Identity service."""
 
 from dataclasses import dataclass
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
@@ -15,7 +16,7 @@ from app.core.security import (
     utc_now,
     verify_password,
 )
-from app.modules.identity.models import User
+from app.modules.identity.models import RefreshToken, User
 from app.modules.identity.repo import IdentityRepo
 from app.modules.members.service import MembersService
 from app.modules.screening.service import ScreeningService
@@ -27,6 +28,17 @@ class TokenPair:
     access_token: str
     refresh_token: str
     user: User
+
+
+@dataclass(frozen=True)
+class SessionInfo:
+    id: UUID
+    family_id: UUID
+    created_at: datetime
+    expires_at: datetime
+    used_at: datetime | None
+    revoked_at: datetime | None
+    active: bool
 
 
 class IdentityService:
@@ -119,6 +131,33 @@ class IdentityService:
     async def logout_all(self, *, user_id: UUID) -> None:
         await self.repo.revoke_user_refresh_tokens(user_id=user_id, revoked_at=utc_now())
 
+    async def change_password(
+        self,
+        *,
+        user_id: UUID,
+        current_password: str,
+        new_password: str,
+    ) -> None:
+        user = await self.repo.get_user_by_id(user_id)
+        if user is None or not verify_password(current_password, user.password_hash):
+            raise invalid_current_password_error()
+        await self.repo.bump_token_version(user_id=user_id, password_hash=hash_password(new_password))
+        await self.repo.revoke_user_refresh_tokens(user_id=user_id, revoked_at=utc_now())
+
+    async def list_sessions(self, *, user_id: UUID) -> list[SessionInfo]:
+        now = utc_now()
+        return [
+            session_info(refresh_token=refresh_token, now=now)
+            for refresh_token in await self.repo.list_refresh_tokens_for_user(user_id=user_id)
+        ]
+
+    async def revoke_session(self, *, user_id: UUID, session_id: UUID) -> None:
+        await self.repo.revoke_refresh_token_by_id(
+            token_id=session_id,
+            user_id=user_id,
+            revoked_at=utc_now(),
+        )
+
     async def _issue_pair(self, *, user: User, family_id: UUID) -> TokenPair:
         refresh_token = generate_refresh_token()
         await self.repo.create_refresh_token(
@@ -155,4 +194,31 @@ def invalid_refresh_error() -> AppError:
         title="Unauthorized",
         detail="Invalid refresh token.",
         type_="https://ajo.dev/problems/invalid-refresh-token",
+    )
+
+
+def invalid_current_password_error() -> AppError:
+    return AppError(
+        status_code=401,
+        title="Unauthorized",
+        detail="Current password is incorrect.",
+        type_="https://ajo.dev/problems/invalid-current-password",
+    )
+
+
+def session_info(*, refresh_token: RefreshToken, now: datetime) -> SessionInfo:
+    active = (
+        refresh_token.revoked_at is None
+        and refresh_token.used_at is None
+        and refresh_token.replaced_by_token_id is None
+        and refresh_token.expires_at > now
+    )
+    return SessionInfo(
+        id=refresh_token.id,
+        family_id=refresh_token.family_id,
+        created_at=refresh_token.created_at,
+        expires_at=refresh_token.expires_at,
+        used_at=refresh_token.used_at,
+        revoked_at=refresh_token.revoked_at,
+        active=active,
     )

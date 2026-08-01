@@ -50,6 +50,14 @@ class IdentityRepo:
         )
         return result.scalar_one_or_none()
 
+    async def list_refresh_tokens_for_user(self, *, user_id: UUID) -> list[RefreshToken]:
+        result = await self.session.execute(
+            select(RefreshToken)
+            .where(RefreshToken.user_id == user_id)
+            .order_by(RefreshToken.created_at.desc(), RefreshToken.id.desc())
+        )
+        return list(result.scalars().all())
+
     async def mark_refresh_token_used(
         self,
         *,
@@ -67,6 +75,23 @@ class IdentityRepo:
         await self.session.execute(
             update(RefreshToken)
             .where(RefreshToken.token_hash == token_hash, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=revoked_at)
+        )
+
+    async def revoke_refresh_token_by_id(
+        self,
+        *,
+        token_id: UUID,
+        user_id: UUID,
+        revoked_at: datetime,
+    ) -> None:
+        await self.session.execute(
+            update(RefreshToken)
+            .where(
+                RefreshToken.id == token_id,
+                RefreshToken.user_id == user_id,
+                RefreshToken.revoked_at.is_(None),
+            )
             .values(revoked_at=revoked_at)
         )
 
