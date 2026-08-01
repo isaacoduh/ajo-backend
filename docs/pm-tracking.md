@@ -78,8 +78,10 @@
 - TrueLayer sandbox top-up flow materially proven end-to-end: top-up initiation
   posts pending funds, verified webhook/status processing posts settlement,
   pending decreases, and available balance increases.
-- TrueLayer business-account payouts implemented behind `PaymentRailPort` with
-  signed/mocked harness coverage; real sandbox payout run pending.
+- TrueLayer sandbox business-account payout flow materially proven end-to-end:
+  `RAIL_PAYOUT=truelayer` withdrawal returned `processing`, provider
+  webhook/status processing posted settlement, pending decreased, and the
+  wallet withdrawal settled.
 - Generated OpenAPI export.
 - Local Docker Compose workflow.
 - Railway deployment runbook.
@@ -103,8 +105,9 @@
 - Production deployment automation.
 - Railway-verified seeded reset drill.
 - M1/M2 Hurl replay evidence from a fresh local or staging environment.
-- Reproducible integrated rail demo evidence for Stripe and TrueLayer, including
-  provider object IDs or redacted run notes suitable for the pitch kit.
+- Reproducible integrated rail demo evidence for Stripe and TrueLayer should be
+  kept current with provider object IDs or redacted run notes suitable for the
+  pitch kit.
 - Full M7 frontend coverage for all PM screens.
 
 ## Frontend Dependency Notes
@@ -118,6 +121,8 @@
 - Backend foundation is deployable as a demo harness.
 - Backend now has sandbox-proven Stripe and TrueLayer wallet top-up settlement
   paths for supported capabilities.
+- Backend now has sandbox-proven TrueLayer business-account payout settlement
+  for the supported withdrawal path.
 - Backend is not yet production-ready as the full PM product API.
 - Deploy target is Railway.
 - Required managed services are Postgres and Redis.

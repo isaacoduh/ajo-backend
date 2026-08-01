@@ -113,7 +113,7 @@ Observed 3000 minor-unit top-up:
 This proves the hosted payment top-up, webhook verification/status processing,
 and internal wallet settlement recipe in sandbox.
 
-Business-account payout support is implemented with the signed/mocked harness:
+Business-account payout support is also materially proven in sandbox:
 
 - Payout creation uses `POST /v3/payouts`.
 - Payout status fetch uses `GET /v3/payouts/{id}` after webhook receipt or
@@ -123,7 +123,16 @@ Business-account payout support is implemented with the signed/mocked harness:
 - Wallet withdrawal settlement/release is applied by wallet ledger recipes after
   fetched provider state, not by the TrueLayer rail.
 
-A real TrueLayer sandbox payout run is still pending. Do not describe payouts as
-sandbox-proven until a real sandbox object has been created and its webhook or
-status fetch has settled the internal ledger. This does not claim production
-readiness or AIS account verification.
+Observed 1500 minor-unit payout:
+
+- `RAIL_PAYOUT=truelayer` was enabled in the Railway environment.
+- Wallet withdrawal returned `processing`, proving the request used the
+  TrueLayer rail rather than the fake rail.
+- Withdrawal initiation decreased available funds by 1500 minor units.
+- Verified provider webhook/status processing landed.
+- Settlement journal moved 1500 minor units out of the wallet pending bucket.
+
+This proves the supported business-account payout creation, webhook/status
+processing, and internal wallet settlement recipe in sandbox. It does not claim
+production readiness, AIS account verification, `external_account` payouts, or
+`payment_source` payouts.
