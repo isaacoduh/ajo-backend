@@ -186,6 +186,10 @@ class CirclesRepo:
         result = await self.require_session().execute(select(CirclePayout).where(CirclePayout.cycle_id == cycle_id))
         return result.scalar_one_or_none()
 
+    async def get_payout_by_payment_object_id(self, payment_object_id: UUID) -> CirclePayout | None:
+        result = await self.require_session().execute(select(CirclePayout).where(CirclePayout.payment_object_id == payment_object_id))
+        return result.scalar_one_or_none()
+
     async def save_payout(self, payout: CirclePayout) -> CirclePayout:
         self.require_session().add(payout)
         await self.require_session().flush()

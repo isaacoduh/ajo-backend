@@ -1,9 +1,10 @@
 # Payments
 
 Payments are designed around a provider-plural port. The current implementation
-includes `FakeRail` for local flows and `StripeRail` for sandbox PaymentIntent
-top-ups. TrueLayer, GoCardless, and Griffin arrive in later rail integration
-passes against the same contract.
+includes `FakeRail` for local flows, `StripeRail` for sandbox PaymentIntent
+top-ups, and `TrueLayerRail` for sandbox hosted payment top-ups plus a
+business-account payout path. GoCardless and Griffin arrive in later rail
+integration passes against the same contract.
 
 ## PaymentRailPort
 
@@ -35,10 +36,13 @@ Current providers:
 
 - `FakeRail`
 - `StripeRail` for sandbox PaymentIntent top-ups and webhook state mirroring.
+- `TrueLayerRail` for sandbox hosted payment top-ups, signed business-account
+  payout creation, and webhook/status-driven wallet settlement.
 
 Future providers must pass `tests/contract/test_payment_rail_contract.py`
 unmodified where their capability set applies. Provider-specific sandbox tests
-are marked separately, such as `@pytest.mark.stripe`.
+are marked separately, such as `@pytest.mark.stripe` and
+`@pytest.mark.truelayer`.
 
 ## Rail Selection
 
@@ -103,7 +107,8 @@ Provider-agnostic pipeline:
 
 Each provider gets a gap-detection cron slot.
 
-This pass implements the verify and persist/process skeleton:
+The current implementation includes provider-specific webhook routes for Stripe
+and TrueLayer:
 
 - `PaymentsService.persist_webhook()` verifies the payload through the selected
   rail and stores the raw event.
@@ -114,6 +119,21 @@ This pass implements the verify and persist/process skeleton:
   any internal ledger recipe. For wallet top-ups, a settled payment moves funds
   from pending to available through the wallet service; provider code never
   posts ledger entries directly.
+- Stripe uses `Stripe-Signature` HMAC verification and fetches the current
+  PaymentIntent state before settlement.
+- TrueLayer uses `Tl-Signature` verification and fetches/processes the current
+  payment or payout status before settlement.
+
+Sandbox evidence has proven the supported wallet top-up path for both Stripe and
+TrueLayer. For TrueLayer, a 3000 minor-unit top-up was observed moving into
+pending at initiation, then moving from pending to available after verified
+webhook/status processing posted the settlement journal.
+
+TrueLayer business-account payouts are implemented behind `PaymentRailPort` with
+signed `/v3/payouts` requests and idempotency, but only against mocked/signed
+harness tests so far. A real sandbox payout run is pending. Unsupported
+TrueLayer payout modes (`external_account` and `payment_source`) return
+`NotSupported`.
 
 ## Reconciliation
 

@@ -332,6 +332,19 @@ class CirclesService:
                 currency=GBP,
             ),
         )
+        if payment_object.provider != "fake":
+            payout = await self.repo.save_payout(
+                CirclePayout(
+                    circle_id=circle.id,
+                    cycle_id=cycle.id,
+                    recipient_member_id=cycle.recipient_member_id,
+                    amount_minor=collected_minor,
+                    shortfall_minor=shortfall_minor,
+                    status="processing",
+                    payment_object_id=payment_object.id,
+                )
+            )
+            return payout_response(payout)
         accounts = await self.ensure_circle_accounts(circle.id)
         platform = await self.require_ledger_service().get_account_by_code(PLATFORM_SETTLEMENT_ACCOUNT_CODE)
         if platform is None:
@@ -372,6 +385,70 @@ class CirclesService:
             )
         cycle.status = "paid_out"
         return payout_response(payout)
+
+    async def settle_payout_if_ready(
+        self,
+        *,
+        provider: str,
+        provider_object_id: str,
+    ) -> CirclePayout | None:
+        payment_object = await PaymentsRepo(self.repo.require_session()).get_payment_object(
+            provider=provider,
+            provider_object_id=provider_object_id,
+        )
+        if payment_object is None or payment_object.flow != PaymentFlow.PAYOUT.value:
+            return None
+        payout = await self.repo.get_payout_by_payment_object_id(payment_object.id)
+        if payout is None:
+            return None
+        if payment_object.state == "settled":
+            await self._settle_circle_payout(payout=payout)
+            if payout.journal_entry_id is not None and payment_object.journal_entry_id is None:
+                await self.require_payments_service().attach_journal_entry(
+                    payment_object=payment_object,
+                    journal_entry_id=payout.journal_entry_id,
+                )
+            return payout
+        if payment_object.state == "failed":
+            payout.status = "failed"
+            return payout
+        return None
+
+    async def _settle_circle_payout(
+        self,
+        *,
+        payout: CirclePayout,
+    ) -> None:
+        if payout.status == "paid" and payout.journal_entry_id is not None:
+            return
+        cycle = await self.repo.get_cycle(circle_id=payout.circle_id, cycle_id=payout.cycle_id)
+        if cycle is None:
+            return
+        accounts = await self.ensure_circle_accounts(payout.circle_id)
+        platform = await self.require_ledger_service().get_account_by_code(PLATFORM_SETTLEMENT_ACCOUNT_CODE)
+        if platform is None:
+            raise circle_error(500, "Ledger Account Missing", "Platform settlement account is missing.", "ledger-account-missing")
+        posted = await self.require_ledger_service().post_entry(
+            idempotency_key=f"circle:{payout.circle_id}:cycle:{payout.cycle_id}:payout:ledger",
+            description=f"Circle payout cycle {cycle.position}",
+            postings=[
+                PostingInput(account_id=accounts.collected_id, side=PostingSide.DEBIT, amount_minor=payout.amount_minor),
+                PostingInput(account_id=platform.id, side=PostingSide.CREDIT, amount_minor=payout.amount_minor),
+            ],
+        )
+        payout.journal_entry_id = posted.journal_entry.id
+        payout.status = "paid"
+        cycle.status = "paid_out"
+        if payout.shortfall_minor > 0:
+            await self.repo.save_shortfall(
+                CircleShortfallRecord(
+                    circle_id=payout.circle_id,
+                    cycle_id=payout.cycle_id,
+                    payout_id=payout.id,
+                    amount_minor=payout.shortfall_minor,
+                    reason="cycle_payout_shortfall",
+                )
+            )
 
     async def inject_late_failure(self, *, circle_id: UUID, contribution_id: UUID, member_id: UUID) -> CircleContributionResponse:
         circle = await self.require_owner_circle(circle_id=circle_id, member_id=member_id)

@@ -37,11 +37,18 @@
 - Integer minor-unit money discipline.
 - Payment rail port.
 - Fake payment rail implementation.
+- StripeRail sandbox implementation for PaymentIntent wallet top-ups.
+- TrueLayerRail sandbox implementation for hosted payment wallet top-ups and
+  signed business-account payout creation.
 - Payment rail registry.
 - Payment object persistence.
 - Provider event persistence.
 - Reconciliation break persistence.
-- Webhook verification/persistence skeleton.
+- Provider webhook routes for Stripe and TrueLayer.
+- Stripe webhook verification, raw event persistence, event dedupe, state fetch,
+  and wallet settlement orchestration.
+- TrueLayer webhook verification, raw event persistence, event dedupe, payment
+  or payout status processing, and wallet settlement orchestration.
 - Payment settlement state machine.
 - ARQ worker harness.
 - Job enqueue-after-commit pattern.
@@ -67,6 +74,12 @@
 - M2 full-cycle harness coverage: 8 members, 8 cycles, 64 contribution obligations, all payouts, late failure, completion idempotency, ledger replay, and balanced debits/credits.
 - M2 lifetime Hurl story enumerates all 8 registrations, joins, agreements, collections, payouts, late failure, records, ledger, statement, and completion; commit hash still requires the documented helper calculation because Hurl cannot compute SHA-256 from captured IDs.
 - Guarded demo reset command for local/development/staging/test that requires `DEMO_RESET_CONFIRM=destroy-and-reseed`, refuses production, clears product tables, and reseeds M1/M2 demo data.
+- Stripe sandbox payment path materially proven for supported top-up flows.
+- TrueLayer sandbox top-up flow materially proven end-to-end: top-up initiation
+  posts pending funds, verified webhook/status processing posts settlement,
+  pending decreases, and available balance increases.
+- TrueLayer business-account payouts implemented behind `PaymentRailPort` with
+  signed/mocked harness coverage; real sandbox payout run pending.
 - Generated OpenAPI export.
 - Local Docker Compose workflow.
 - Railway deployment runbook.
@@ -79,11 +92,19 @@
 ## Backend Remaining
 
 - Real KYC provider integration.
-- Real payment provider integrations.
-- Provider-specific webhook routes.
+- GoCardless payment provider integration.
+- OpenSanctions screening provider integration.
+- Griffin BaaS spike documentation.
+- Stripe Connect payout execution and Stripe Identity evidence model, if kept in
+  scope beyond the currently proven PaymentIntent top-up path.
+- TrueLayer AIS account verification, `external_account` payouts, and
+  `payment_source` payouts remain gated unless sandbox/account access supports
+  them.
 - Production deployment automation.
 - Railway-verified seeded reset drill.
 - M1/M2 Hurl replay evidence from a fresh local or staging environment.
+- Reproducible integrated rail demo evidence for Stripe and TrueLayer, including
+  provider object IDs or redacted run notes suitable for the pitch kit.
 - Full M7 frontend coverage for all PM screens.
 
 ## Frontend Dependency Notes
@@ -95,7 +116,9 @@
 ## Deployment Readiness
 
 - Backend foundation is deployable as a demo harness.
-- Backend is not yet deployable as the full PM product API.
+- Backend now has sandbox-proven Stripe and TrueLayer wallet top-up settlement
+  paths for supported capabilities.
+- Backend is not yet production-ready as the full PM product API.
 - Deploy target is Railway.
 - Required managed services are Postgres and Redis.
 - Required runtime services are API and worker.
@@ -107,3 +130,5 @@
 - Required Railway showcase environment is `ENV=staging`.
 - Required fake rail settings are `RAIL_TOPUP=fake`, `RAIL_COLLECTION=fake`, and `RAIL_PAYOUT=fake`.
 - Live payment credentials must not be set.
+- Stripe/TrueLayer sandbox credentials may be set only for sandbox rail demos;
+  live credentials remain rejected by configuration safeguards.

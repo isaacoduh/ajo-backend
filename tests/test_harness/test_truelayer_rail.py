@@ -2,10 +2,12 @@ import base64
 import json
 from collections.abc import AsyncIterator, Mapping
 from typing import Any
+from uuid import UUID
 
 import httpx
 import pytest
 from app.core.config import Settings
+from app.db.ledger import PostingInput, PostingSide
 from app.db.session import get_session
 from app.main import create_app
 from app.modules.identity.models import User
@@ -18,22 +20,25 @@ from app.modules.payments.router import get_payment_rail_registry
 from app.modules.payments.service import PaymentsService
 from app.modules.payments.truelayer_rail import (
     TRUE_LAYER_PAYMENT_PATH,
+    TRUE_LAYER_PAYOUT_PATH,
     TRUE_LAYER_WEBHOOK_PATH,
     TrueLayerRail,
     map_payment_state,
+    map_payout_state,
 )
 from app.modules.payments.truelayer_signing import SignedTrueLayerRequest
 from app.modules.payments.types import (
     Capability,
     NotSupportedError,
     PaymentFlow,
+    PayoutRequest,
     ProviderName,
     RailOperationResult,
     SettlementState,
     TopupRequest,
 )
 from app.modules.wallets.repo import WalletsRepo
-from app.modules.wallets.service import WalletService
+from app.modules.wallets.service import PLATFORM_SETTLEMENT_ACCOUNT_CODE, WalletService
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import FastAPI
@@ -74,7 +79,9 @@ def generated_private_key_pem() -> str:
     ).decode("utf-8")
 
 
-def public_jwks_from_private_pem(*, kid: str, private_key_pem: str) -> dict[str, list[dict[str, str]]]:
+def public_jwks_from_private_pem(
+    *, kid: str, private_key_pem: str
+) -> dict[str, list[dict[str, str]]]:
     private_key = serialization.load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
     if not isinstance(private_key, ec.EllipticCurvePrivateKey):
         raise TypeError("Expected EC private key.")
@@ -123,6 +130,39 @@ async def create_member_user(db_session: AsyncSession, *, email: str) -> tuple[U
     return user, member
 
 
+async def seed_available_balance(
+    wallet_service: WalletService,
+    *,
+    member_id: UUID,
+    amount_minor: int,
+) -> None:
+    wallet = await wallet_service.ensure_for_member(member_id=member_id)
+    platform = await wallet_service.ledger_service.get_account_by_code(
+        PLATFORM_SETTLEMENT_ACCOUNT_CODE
+    )
+    available = await wallet_service.ledger_service.get_account_by_code(
+        wallet.available_account_code
+    )
+    assert platform is not None
+    assert available is not None
+    await wallet_service.ledger_service.post_entry(
+        idempotency_key=f"truelayer-seed-available-{member_id}-{amount_minor}",
+        description="Seed available wallet balance",
+        postings=[
+            PostingInput(
+                account_id=platform.id,
+                side=PostingSide.DEBIT,
+                amount_minor=amount_minor,
+            ),
+            PostingInput(
+                account_id=available.id,
+                side=PostingSide.CREDIT,
+                amount_minor=amount_minor,
+            ),
+        ],
+    )
+
+
 def webhook_app_for_session(
     db_session: AsyncSession,
     rail: TrueLayerRail,
@@ -157,6 +197,27 @@ class TrueLayerLikeTopupRail:
         )
 
 
+class TrueLayerLikePayoutRail:
+    provider = "truelayer"
+
+    def __init__(
+        self,
+        provider_object_id: str = "796cab79-cd1a-4e01-8241-93ac28bf4260",
+    ) -> None:
+        self.provider_object_id = provider_object_id
+
+    async def send_payout(self, request: PayoutRequest) -> RailOperationResult:
+        return RailOperationResult(
+            provider=ProviderName.TRUELAYER,
+            provider_object_id=self.provider_object_id,
+            idempotency_key=request.idempotency_key,
+            state=SettlementState.PROCESSING,
+            amount_minor=request.amount_minor,
+            currency=request.currency,
+            provider_metadata={"truelayer_object_type": "payout"},
+        )
+
+
 def fake_signer(
     kid: str,
     private_key_pem: str,
@@ -169,7 +230,7 @@ def fake_signer(
     assert kid == "tl-key-id"
     assert private_key_pem == "private-key"
     assert method == HttpMethod.POST
-    assert path == TRUE_LAYER_PAYMENT_PATH
+    assert path in {TRUE_LAYER_PAYMENT_PATH, TRUE_LAYER_PAYOUT_PATH}
     body = json.dumps(payload, separators=(",", ":"), sort_keys=False).encode()
     return SignedTrueLayerRequest(
         body=body,
@@ -234,6 +295,7 @@ async def test_truelayer_topup_creates_hosted_payment_with_signed_body() -> None
     assert result.idempotency_key == "tl-topup-1"
     assert result.state == SettlementState.INITIATED
     assert result.provider_metadata == {
+        "truelayer_object_type": "payment",
         "status": "authorization_required",
         "hosted_page_uri": "https://payment.truelayer.test/hosted/pay_test_123",
     }
@@ -293,12 +355,109 @@ async def test_truelayer_topup_uses_request_amount_when_create_response_omits_am
     assert result.state == SettlementState.INITIATED
 
 
+@pytest.mark.asyncio
+async def test_truelayer_payout_creates_business_account_payout_with_signed_body() -> None:
+    seen: dict[str, Any] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == "https://auth.truelayer.test/connect/token":
+            return httpx.Response(200, json={"access_token": "tl-access-token"})
+
+        seen["url"] = str(request.url)
+        seen["headers"] = dict(request.headers)
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(
+            201,
+            json={
+                "id": "796cab79-cd1a-4e01-8241-93ac28bf4260",
+                "amount_in_minor": 2400,
+                "currency": "GBP",
+                "status": "pending",
+                "beneficiary": {"type": "business_account", "reference": "AJO PAYOUT"},
+                "metadata": {
+                    "idempotency_key": "tl-payout-1",
+                    "ajo_flow": "payout",
+                    "user_id": "user-1",
+                    "payout_type": "business_account",
+                },
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        rail = TrueLayerRail(
+            settings=truelayer_settings(),
+            http_client=client,
+            signer=fake_signer,
+        )
+        result = await rail.send_payout(
+            PayoutRequest(
+                idempotency_key="tl-payout-1",
+                user_id="user-1",
+                amount_minor=2400,
+                currency="GBP",
+            )
+        )
+
+    assert result.provider.value == "truelayer"
+    assert result.provider_object_id == "796cab79-cd1a-4e01-8241-93ac28bf4260"
+    assert result.idempotency_key == "tl-payout-1"
+    assert result.state == SettlementState.PROCESSING
+    assert result.provider_metadata == {
+        "truelayer_object_type": "payout",
+        "status": "pending",
+        "beneficiary_type": "business_account",
+        "beneficiary_reference": "AJO PAYOUT",
+    }
+    assert seen["url"] == "https://api.truelayer.test/v3/payouts"
+    assert seen["headers"]["authorization"] == "Bearer tl-access-token"
+    assert seen["headers"]["idempotency-key"] == "tl-payout-1"
+    assert seen["headers"]["tl-signature"] == "tl-signature-test"
+    assert seen["body"] == {
+        "merchant_account_id": "ma_test_123",
+        "amount_in_minor": 2400,
+        "currency": "GBP",
+        "beneficiary": {
+            "type": "business_account",
+            "reference": "AJO PAYOUT",
+        },
+        "metadata": {
+            "ajo_flow": "payout",
+            "idempotency_key": "tl-payout-1",
+            "user_id": "user-1",
+            "payout_type": "business_account",
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_truelayer_rejects_unsupported_payout_beneficiary_type() -> None:
+    rail = TrueLayerRail(settings=truelayer_settings())
+
+    with pytest.raises(NotSupportedError):
+        await rail.send_payout(
+            PayoutRequest(
+                idempotency_key="tl-payout-external",
+                user_id="user-1",
+                amount_minor=2400,
+                beneficiary_type="external_account",
+            )
+        )
+
+
 def test_truelayer_maps_payment_states() -> None:
     assert map_payment_state("authorization_required") == SettlementState.INITIATED
     assert map_payment_state("executed") == SettlementState.PROCESSING
     assert map_payment_state("payment_creditable") == SettlementState.SETTLED
     assert map_payment_state("failed") == SettlementState.FAILED
     assert map_payment_state("unknown") == SettlementState.PROCESSING
+
+
+def test_truelayer_maps_payout_states() -> None:
+    assert map_payout_state("pending") == SettlementState.PROCESSING
+    assert map_payout_state("authorized") == SettlementState.PROCESSING
+    assert map_payout_state("executed") == SettlementState.SETTLED
+    assert map_payout_state("failed") == SettlementState.FAILED
+    assert map_payout_state("unknown") == SettlementState.PROCESSING
 
 
 def test_registry_selects_truelayer_for_topups() -> None:
@@ -315,6 +474,7 @@ async def test_truelayer_unsupported_capabilities_are_honest() -> None:
     rail = TrueLayerRail(settings=truelayer_settings())
 
     assert rail.supports(Capability.TOPUPS)
+    assert rail.supports(Capability.PAYOUTS)
     assert rail.supports(Capability.WEBHOOKS)
     assert not rail.supports(Capability.RECONCILIATION)
     with pytest.raises(NotSupportedError):
@@ -428,3 +588,209 @@ async def test_truelayer_webhook_route_persists_dedupes_and_settles_topup(
     balance = await wallet_service.balance_for_member(member_id=member.id)
     assert balance.pending_minor == 0
     assert balance.available_minor == 1250
+
+
+@pytest.mark.asyncio
+async def test_truelayer_payout_executed_webhook_settles_wallet_withdrawal(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    private_key_pem = generated_private_key_pem()
+    jwks = public_jwks_from_private_pem(kid="tl-key-id", private_key_pem=private_key_pem)
+    payout_id = "796cab79-cd1a-4e01-8241-93ac28bf4260"
+    body = json.dumps(
+        {
+            "type": "payout_executed",
+            "event_version": 1,
+            "event_id": "evt_tl_payout_executed",
+            "payout_id": payout_id,
+            "executed_at": "2026-08-01T12:00:00Z",
+            "beneficiary": {"type": "business_account"},
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    signature = signed_truelayer_webhook_header(body=body, private_key_pem=private_key_pem)
+    user, member = await create_member_user(db_session, email="truelayer-payout@example.com")
+    wallet_service = WalletService(
+        WalletsRepo(db_session),
+        LedgerService(db_session),
+        PaymentsService(PaymentsRepo(db_session)),
+        PaymentRailRegistry(
+            {
+                "fake": TrueLayerLikePayoutRail(provider_object_id=payout_id),
+                "truelayer": TrueLayerLikePayoutRail(provider_object_id=payout_id),
+            }
+        ),  # type: ignore[dict-item]
+    )
+    await seed_available_balance(wallet_service, member_id=member.id, amount_minor=5000)
+    await wallet_service.create_withdrawal(
+        member_id=member.id,
+        user_id=user.id,
+        amount_minor=1500,
+        currency="GBP",
+        idempotency_key="truelayer-wallet-payout-key",
+    )
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == SANDBOX_WEBHOOK_JKU:
+            return httpx.Response(200, json=jwks)
+        if str(request.url) == "https://auth.truelayer.test/connect/token":
+            return httpx.Response(200, json={"access_token": "tl-access-token"})
+        if str(request.url) == f"https://api.truelayer.test/v3/payments/{payout_id}":
+            return httpx.Response(404, json={"error": "not_found"})
+        assert str(request.url) == f"https://api.truelayer.test/v3/payouts/{payout_id}"
+        assert request.headers["Authorization"] == "Bearer tl-access-token"
+        assert request.headers["Idempotency-Key"] == f"truelayer:get-payout:{payout_id}"
+        return httpx.Response(
+            200,
+            json={
+                "id": payout_id,
+                "merchant_account_id": "ma_test_123",
+                "amount_in_minor": 1500,
+                "currency": "GBP",
+                "status": "executed",
+                "beneficiary": {"type": "business_account", "reference": "AJO PAYOUT"},
+                "metadata": {
+                    "idempotency_key": "truelayer-wallet-payout-key",
+                    "ajo_flow": "payout",
+                    "user_id": str(user.id),
+                },
+            },
+        )
+
+    settings = truelayer_settings(
+        TRUELAYER_PRIVATE_KEY_PEM_B64=base64.b64encode(private_key_pem.encode("utf-8")).decode(
+            "ascii"
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as truelayer_client:
+        rail = TrueLayerRail(settings=settings, http_client=truelayer_client)
+        app = webhook_app_for_session(db_session, rail)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            first = await client.post(
+                "/payments/webhooks/truelayer",
+                content=body,
+                headers={
+                    "Tl-Signature": signature,
+                    "X-TL-Webhook-Timestamp": "2026-08-01T12:00:00Z",
+                },
+            )
+            second = await client.post(
+                "/payments/webhooks/truelayer",
+                content=body,
+                headers={
+                    "Tl-Signature": signature,
+                    "X-TL-Webhook-Timestamp": "2026-08-01T12:00:00Z",
+                },
+            )
+
+    assert first.status_code == 200, first.text
+    assert first.json() == {"received": True, "deduped": False}
+    assert second.status_code == 200
+    assert second.json() == {"received": True, "deduped": True}
+
+    events = (await db_session.execute(select(PartnerEvent))).scalars().all()
+    assert len(events) == 1
+    assert events[0].provider_object_id == payout_id
+
+    balance = await wallet_service.balance_for_member(member_id=member.id)
+    assert balance.pending_minor == 0
+    assert balance.available_minor == 3500
+
+
+@pytest.mark.asyncio
+async def test_truelayer_payout_failed_webhook_releases_wallet_withdrawal(
+    test_env: None,
+    db_session: AsyncSession,
+) -> None:
+    _ = test_env
+    private_key_pem = generated_private_key_pem()
+    jwks = public_jwks_from_private_pem(kid="tl-key-id", private_key_pem=private_key_pem)
+    payout_id = "0a495e9f-2f41-4669-ba33-85407c0b26cb"
+    body = json.dumps(
+        {
+            "type": "payout_failed",
+            "event_version": 1,
+            "event_id": "evt_tl_payout_failed",
+            "payout_id": payout_id,
+            "failed_at": "2026-08-01T12:00:00Z",
+            "failure_reason": "insufficient_funds",
+            "beneficiary": {"type": "business_account"},
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+    signature = signed_truelayer_webhook_header(body=body, private_key_pem=private_key_pem)
+    user, member = await create_member_user(db_session, email="truelayer-payout-failed@example.com")
+    wallet_service = WalletService(
+        WalletsRepo(db_session),
+        LedgerService(db_session),
+        PaymentsService(PaymentsRepo(db_session)),
+        PaymentRailRegistry(
+            {
+                "fake": TrueLayerLikePayoutRail(provider_object_id=payout_id),
+                "truelayer": TrueLayerLikePayoutRail(provider_object_id=payout_id),
+            }
+        ),  # type: ignore[dict-item]
+    )
+    await seed_available_balance(wallet_service, member_id=member.id, amount_minor=5000)
+    await wallet_service.create_withdrawal(
+        member_id=member.id,
+        user_id=user.id,
+        amount_minor=1500,
+        currency="GBP",
+        idempotency_key="truelayer-wallet-payout-failed-key",
+    )
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == SANDBOX_WEBHOOK_JKU:
+            return httpx.Response(200, json=jwks)
+        if str(request.url) == "https://auth.truelayer.test/connect/token":
+            return httpx.Response(200, json={"access_token": "tl-access-token"})
+        if str(request.url) == f"https://api.truelayer.test/v3/payments/{payout_id}":
+            return httpx.Response(404, json={"error": "not_found"})
+        assert str(request.url) == f"https://api.truelayer.test/v3/payouts/{payout_id}"
+        return httpx.Response(
+            200,
+            json={
+                "id": payout_id,
+                "merchant_account_id": "ma_test_123",
+                "amount_in_minor": 1500,
+                "currency": "GBP",
+                "status": "failed",
+                "failure_reason": "insufficient_funds",
+                "beneficiary": {"type": "business_account", "reference": "AJO PAYOUT"},
+                "metadata": {
+                    "idempotency_key": "truelayer-wallet-payout-failed-key",
+                    "ajo_flow": "payout",
+                    "user_id": str(user.id),
+                },
+            },
+        )
+
+    settings = truelayer_settings(
+        TRUELAYER_PRIVATE_KEY_PEM_B64=base64.b64encode(private_key_pem.encode("utf-8")).decode(
+            "ascii"
+        )
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as truelayer_client:
+        rail = TrueLayerRail(settings=settings, http_client=truelayer_client)
+        app = webhook_app_for_session(db_session, rail)
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/payments/webhooks/truelayer",
+                content=body,
+                headers={
+                    "Tl-Signature": signature,
+                    "X-TL-Webhook-Timestamp": "2026-08-01T12:00:00Z",
+                },
+            )
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"received": True, "deduped": False}
+
+    balance = await wallet_service.balance_for_member(member_id=member.id)
+    assert balance.pending_minor == 0
+    assert balance.available_minor == 5000

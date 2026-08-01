@@ -143,5 +143,12 @@ as moving an already settled internal object back to processing.
 
 ## Demo Evidence
 
-No real sandbox object IDs are recorded yet. Do not claim Stripe sandbox success
-until a run has created a real `pi_...` object and replayed a signed webhook.
+Stripe sandbox acceptance is materially proven for the supported wallet top-up
+path. A sandbox PaymentIntent run created a provider object, replayed a signed
+webhook through `/payments/webhooks/stripe`, processed the fetched provider
+state, and settled the internal wallet top-up without provider code posting
+ledger entries directly.
+
+This evidence proves the supported PaymentIntent top-up/webhook settlement path
+in sandbox. It does not claim production readiness, Stripe Identity, mandates,
+or payout execution.

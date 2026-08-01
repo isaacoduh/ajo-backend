@@ -1,7 +1,8 @@
 # TrueLayerRail
 
 TrueLayer integration currently supports sandbox wallet top-ups through hosted
-Payments v3 bank transfers.
+Payments v3 bank transfers and a narrow payout path through Payments v3
+business-account payouts.
 
 When `RAIL_TOPUP=truelayer`, `POST /wallet/topups` creates a TrueLayer hosted
 payment and returns:
@@ -20,10 +21,17 @@ The frontend should redirect the member to `provider_action.redirect_url`.
 TrueLayer webhooks update the internal payment state and settle wallet top-ups
 when the payment status becomes `settled` or `payment_creditable`.
 
+When `RAIL_PAYOUT=truelayer`, wallet withdrawals and circle payouts create a
+TrueLayer `POST /v3/payouts` object through the existing payment service flow.
+The implemented demo payout type is `business_account`; `external_account` and
+`payment_source` remain unsupported because the current request shape does not
+carry bank account details or a reusable TrueLayer payment source ID.
+
 Required sandbox env:
 
 ```text
 RAIL_TOPUP=truelayer
+RAIL_PAYOUT=truelayer
 TRUELAYER_CLIENT_ID=...
 TRUELAYER_CLIENT_SECRET=...
 TRUELAYER_KEY_ID=...
@@ -62,7 +70,8 @@ The backend uses TrueLayer's Python signing library through
 
 Rules:
 
-- Sign the request path only, for example `/v3/payments`, not the full URL.
+- Sign the request path only, for example `/v3/payments` or `/v3/payouts`, not
+  the full URL.
 - Serialize JSON exactly once:
 
 ```python
@@ -88,3 +97,33 @@ Tl-Signature: ...
 
 Public keys belong in TrueLayer Console. Private keys remain backend-only and
 should be supplied through sandbox environment variables only.
+
+## Demo Evidence
+
+TrueLayer sandbox acceptance is materially proven for the supported wallet
+top-up path.
+
+Observed 3000 minor-unit top-up:
+
+- Top-up initiation posted funds into the wallet pending bucket.
+- Verified TrueLayer webhook/status processing landed.
+- Settlement journal moved 3000 minor units out of pending.
+- Settlement journal moved 3000 minor units into available.
+
+This proves the hosted payment top-up, webhook verification/status processing,
+and internal wallet settlement recipe in sandbox.
+
+Business-account payout support is implemented with the signed/mocked harness:
+
+- Payout creation uses `POST /v3/payouts`.
+- Payout status fetch uses `GET /v3/payouts/{id}` after webhook receipt or
+  status polling.
+- `payout_executed` maps to internal `settled`.
+- `payout_failed` maps to internal `failed`.
+- Wallet withdrawal settlement/release is applied by wallet ledger recipes after
+  fetched provider state, not by the TrueLayer rail.
+
+A real TrueLayer sandbox payout run is still pending. Do not describe payouts as
+sandbox-proven until a real sandbox object has been created and its webhook or
+status fetch has settled the internal ledger. This does not claim production
+readiness or AIS account verification.

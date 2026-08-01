@@ -144,7 +144,9 @@ class WalletService:
     async def balance_for_member(self, *, member_id: UUID) -> WalletBalance:
         wallet = await self.ensure_for_member(member_id=member_id)
         pending_account = await self.ledger_service.get_account_by_code(wallet.pending_account_code)
-        available_account = await self.ledger_service.get_account_by_code(wallet.available_account_code)
+        available_account = await self.ledger_service.get_account_by_code(
+            wallet.available_account_code
+        )
         if pending_account is None or available_account is None:
             raise wallet_accounts_missing_error()
         return WalletBalance(
@@ -310,6 +312,10 @@ class WalletService:
                 amount_minor=amount_minor,
                 currency=currency,
             )
+            await self._attach_withdrawal_wallet_metadata(
+                payment_object=existing,
+                member_id=member_id,
+            )
             if existing.journal_entry_id is not None:
                 return wallet_withdrawal_result(existing)
 
@@ -329,6 +335,10 @@ class WalletService:
                 amount_minor=amount_minor,
                 currency=currency,
                 idempotency_key=idempotency_key,
+            )
+            await self._attach_withdrawal_wallet_metadata(
+                payment_object=payment_object,
+                member_id=member_id,
             )
 
         posted = await self.ledger_service.post_entry(
@@ -399,6 +409,26 @@ class WalletService:
         await self._settle_topup_payment_object(payment_object)
         return payment_object
 
+    async def settle_payout_if_ready(
+        self,
+        *,
+        provider: str,
+        provider_object_id: str,
+    ) -> PaymentObject | None:
+        payment_object = await PaymentsRepo(self.repo.session).get_payment_object(
+            provider=provider,
+            provider_object_id=provider_object_id,
+        )
+        if payment_object is None or payment_object.flow != PaymentFlow.PAYOUT.value:
+            return None
+        if payment_object.state == "settled":
+            await self._settle_withdrawal_payment_object(payment_object)
+            return payment_object
+        if payment_object.state == "failed":
+            await self._fail_withdrawal_payment_object(payment_object)
+            return payment_object
+        return None
+
     async def _settle_topup_payment_object(self, payment_object: PaymentObject) -> None:
         metadata = payment_object.provider_metadata or {}
         member_id_text = metadata.get("wallet_member_id")
@@ -437,7 +467,102 @@ class WalletService:
             ],
         )
 
+    async def _settle_withdrawal_payment_object(self, payment_object: PaymentObject) -> None:
+        metadata = payment_object.provider_metadata or {}
+        member_id_text = metadata.get("wallet_member_id")
+        if not isinstance(member_id_text, str):
+            return
+        amount_minor = payment_object.amount_minor
+        if amount_minor is None or amount_minor <= 0:
+            return
+        settlement_key = withdrawal_settled_journal_key(payment_object.idempotency_key)
+        existing_settlement = await self.ledger_service.get_journal_entry_by_idempotency_key(
+            settlement_key
+        )
+        if existing_settlement is not None:
+            return
+        wallet = await self.ensure_for_member(member_id=UUID(member_id_text))
+        pending_account = await self.ledger_service.get_account_by_code(wallet.pending_account_code)
+        platform_account = await self.ledger_service.get_account_by_code(
+            PLATFORM_SETTLEMENT_ACCOUNT_CODE
+        )
+        if pending_account is None or platform_account is None:
+            raise wallet_accounts_missing_error()
+        await self.ledger_service.post_entry(
+            idempotency_key=settlement_key,
+            description="Wallet withdrawal settled",
+            postings=[
+                PostingInput(
+                    account_id=pending_account.id,
+                    side=PostingSide.DEBIT,
+                    amount_minor=amount_minor,
+                ),
+                PostingInput(
+                    account_id=platform_account.id,
+                    side=PostingSide.CREDIT,
+                    amount_minor=amount_minor,
+                ),
+            ],
+        )
+
+    async def _fail_withdrawal_payment_object(self, payment_object: PaymentObject) -> None:
+        metadata = payment_object.provider_metadata or {}
+        member_id_text = metadata.get("wallet_member_id")
+        if not isinstance(member_id_text, str):
+            return
+        amount_minor = payment_object.amount_minor
+        if amount_minor is None or amount_minor <= 0:
+            return
+        settlement_key = withdrawal_settled_journal_key(payment_object.idempotency_key)
+        existing_settlement = await self.ledger_service.get_journal_entry_by_idempotency_key(
+            settlement_key
+        )
+        if existing_settlement is not None:
+            return
+        failure_key = withdrawal_failed_journal_key(payment_object.idempotency_key)
+        existing_failure = await self.ledger_service.get_journal_entry_by_idempotency_key(
+            failure_key
+        )
+        if existing_failure is not None:
+            return
+        wallet = await self.ensure_for_member(member_id=UUID(member_id_text))
+        pending_account = await self.ledger_service.get_account_by_code(wallet.pending_account_code)
+        available_account = await self.ledger_service.get_account_by_code(
+            wallet.available_account_code
+        )
+        if pending_account is None or available_account is None:
+            raise wallet_accounts_missing_error()
+        await self.ledger_service.post_entry(
+            idempotency_key=failure_key,
+            description="Wallet withdrawal failed",
+            postings=[
+                PostingInput(
+                    account_id=pending_account.id,
+                    side=PostingSide.DEBIT,
+                    amount_minor=amount_minor,
+                ),
+                PostingInput(
+                    account_id=available_account.id,
+                    side=PostingSide.CREDIT,
+                    amount_minor=amount_minor,
+                ),
+            ],
+        )
+
     async def _attach_topup_wallet_metadata(
+        self,
+        *,
+        payment_object: PaymentObject,
+        member_id: UUID,
+    ) -> None:
+        metadata = dict(payment_object.provider_metadata or {})
+        if metadata.get("wallet_member_id") == str(member_id):
+            return
+        metadata["wallet_member_id"] = str(member_id)
+        payment_object.provider_metadata = metadata
+        await self.repo.session.flush()
+
+    async def _attach_withdrawal_wallet_metadata(
         self,
         *,
         payment_object: PaymentObject,
@@ -623,6 +748,14 @@ def topup_settled_journal_key(idempotency_key: str) -> str:
 
 def withdrawal_initiated_journal_key(idempotency_key: str) -> str:
     return f"wallet-withdrawal:{idempotency_key}:initiated"
+
+
+def withdrawal_settled_journal_key(idempotency_key: str) -> str:
+    return f"wallet-withdrawal:{idempotency_key}:settled"
+
+
+def withdrawal_failed_journal_key(idempotency_key: str) -> str:
+    return f"wallet-withdrawal:{idempotency_key}:failed"
 
 
 def wallet_topup_result(payment_object: PaymentObject) -> WalletTopupResult:

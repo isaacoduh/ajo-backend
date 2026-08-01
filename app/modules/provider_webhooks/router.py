@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, status
 
 from app.core.errors import AppError
+from app.modules.circles.service import get_circles_service
 from app.modules.payments.registry import PaymentRailRegistry
 from app.modules.payments.router import (
     SessionDep,
@@ -47,6 +48,15 @@ async def stripe_webhook(
             )
             wallet_service = get_wallet_service(session)
             await wallet_service.settle_topup_if_ready(
+                provider=result.provider.value,
+                provider_object_id=result.provider_object_id,
+            )
+            await wallet_service.settle_payout_if_ready(
+                provider=result.provider.value,
+                provider_object_id=result.provider_object_id,
+            )
+            circles_service = get_circles_service(session)
+            await circles_service.settle_payout_if_ready(
                 provider=result.provider.value,
                 provider_object_id=result.provider_object_id,
             )
@@ -94,6 +104,15 @@ async def truelayer_webhook(
             )
             wallet_service = get_wallet_service(session)
             await wallet_service.settle_topup_if_ready(
+                provider=result.provider.value,
+                provider_object_id=result.provider_object_id,
+            )
+            await wallet_service.settle_payout_if_ready(
+                provider=result.provider.value,
+                provider_object_id=result.provider_object_id,
+            )
+            circles_service = get_circles_service(session)
+            await circles_service.settle_payout_if_ready(
                 provider=result.provider.value,
                 provider_object_id=result.provider_object_id,
             )

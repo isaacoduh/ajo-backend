@@ -39,6 +39,7 @@ from app.modules.payments.types import (
 )
 
 TRUE_LAYER_PAYMENT_PATH = "/v3/payments"
+TRUE_LAYER_PAYOUT_PATH = "/v3/payouts"
 TRUE_LAYER_WEBHOOK_PATH = "/payments/webhooks/truelayer"
 ALLOWED_WEBHOOK_JKUS = frozenset(
     {
@@ -82,7 +83,7 @@ TrueLayerSigner = Callable[
 
 class TrueLayerRail:
     provider = ProviderName.TRUELAYER.value
-    capabilities = frozenset({Capability.TOPUPS, Capability.WEBHOOKS})
+    capabilities = frozenset({Capability.TOPUPS, Capability.PAYOUTS, Capability.WEBHOOKS})
 
     def __init__(
         self,
@@ -130,10 +131,36 @@ class TrueLayerRail:
         raise NotSupportedError(Capability.COLLECTIONS)
 
     async def send_payout(self, request: PayoutRequest) -> RailOperationResult:
-        _ = request
-        raise NotSupportedError(Capability.PAYOUTS)
+        if request.beneficiary_type != "business_account":
+            raise NotSupportedError(Capability.PAYOUTS)
+        access_token = await self._access_token()
+        payload = self._business_account_payout_payload(request)
+        signed = self.signer(
+            self._key_id(),
+            self._private_key_pem(),
+            HttpMethod.POST,
+            TRUE_LAYER_PAYOUT_PATH,
+            payload,
+            request.idempotency_key,
+            {"Authorization": f"Bearer {access_token}"},
+        )
+        response = await self._post_signed(path=TRUE_LAYER_PAYOUT_PATH, signed=signed)
+        return payout_result(
+            response.payload,
+            fallback_idempotency_key=request.idempotency_key,
+            fallback_amount_minor=request.amount_minor,
+            fallback_currency=request.currency,
+        )
 
     async def get_settlement_status(self, provider_object_id: str) -> RailOperationResult:
+        if looks_like_payout_id(provider_object_id):
+            return await self._get_payout_status(provider_object_id)
+        try:
+            return await self._get_payment_status(provider_object_id)
+        except TrueLayerRailError:
+            return await self._get_payout_status(provider_object_id)
+
+    async def _get_payment_status(self, provider_object_id: str) -> RailOperationResult:
         path = f"{TRUE_LAYER_PAYMENT_PATH}/{provider_object_id}"
         access_token = await self._access_token()
         signed = build_signed_empty_request(
@@ -146,6 +173,20 @@ class TrueLayerRail:
         )
         response = await self._get_signed(path=path, signed=signed)
         return payment_result(response.payload, fallback_idempotency_key="")
+
+    async def _get_payout_status(self, provider_object_id: str) -> RailOperationResult:
+        path = f"{TRUE_LAYER_PAYOUT_PATH}/{provider_object_id}"
+        access_token = await self._access_token()
+        signed = build_signed_empty_request(
+            kid=self._key_id(),
+            private_key_pem=self._private_key_pem(),
+            method=HttpMethod.GET,
+            path=path,
+            idempotency_key=f"truelayer:get-payout:{provider_object_id}",
+            extra_headers={"Authorization": f"Bearer {access_token}"},
+        )
+        response = await self._get_signed(path=path, signed=signed)
+        return payout_result(response.payload, fallback_idempotency_key="")
 
     async def verify_webhook(
         self,
@@ -166,7 +207,7 @@ class TrueLayerRail:
             ).add_headers(headers).set_body(body.decode("utf-8")).verify(signature_header)
             payload = json.loads(body.decode("utf-8"))
             event_id = str(payload["event_id"])
-            provider_object_id = str(payload["payment_id"])
+            provider_object_id = webhook_provider_object_id(payload)
         except TrueLayerWebhookVerificationError:
             raise
         except (KeyError, TypeError, ValueError, json.JSONDecodeError, TlSigningException) as exc:
@@ -225,7 +266,7 @@ class TrueLayerRail:
                 )
         payload = parse_json_response(response, provider_name="TrueLayer API")
         if not isinstance(payload.get("id"), str):
-            raise TrueLayerRailError("TrueLayer response did not include a payment id.")
+            raise TrueLayerRailError("TrueLayer response did not include an object id.")
         return TrueLayerApiResponse(id=payload["id"], payload=payload)
 
     async def _get_signed(
@@ -241,7 +282,7 @@ class TrueLayerRail:
                 response = await client.get(self._api_url(path), headers=signed.headers)
         payload = parse_json_response(response, provider_name="TrueLayer API")
         if not isinstance(payload.get("id"), str):
-            raise TrueLayerRailError("TrueLayer response did not include a payment id.")
+            raise TrueLayerRailError("TrueLayer response did not include an object id.")
         return TrueLayerApiResponse(id=payload["id"], payload=payload)
 
     async def _fetch_jwks(self, jku: str | None) -> dict[str, Any]:
@@ -290,6 +331,23 @@ class TrueLayerRail:
             },
         }
 
+    def _business_account_payout_payload(self, request: PayoutRequest) -> dict[str, Any]:
+        return {
+            "merchant_account_id": self._merchant_account_id(),
+            "amount_in_minor": request.amount_minor,
+            "currency": request.currency.upper(),
+            "beneficiary": {
+                "type": "business_account",
+                "reference": "AJO PAYOUT",
+            },
+            "metadata": {
+                "ajo_flow": "payout",
+                "idempotency_key": request.idempotency_key,
+                "user_id": request.user_id,
+                "payout_type": "business_account",
+            },
+        }
+
     def _api_url(self, path: str) -> str:
         base_url = self.settings.truelayer_api_base_url.rstrip("/") + "/"
         return urljoin(base_url, path.lstrip("/"))
@@ -333,7 +391,9 @@ class TrueLayerRail:
 
     def _redirect_uri(self) -> str:
         if self.settings.truelayer_redirect_uri is None:
-            raise TrueLayerConfigurationError("TRUELAYER_REDIRECT_URI is required for TrueLayerRail.")
+            raise TrueLayerConfigurationError(
+                "TRUELAYER_REDIRECT_URI is required for TrueLayerRail."
+            )
         return self.settings.truelayer_redirect_uri
 
 
@@ -402,13 +462,54 @@ def payment_result(
 
 
 def payment_metadata(payload: dict[str, Any]) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = {"truelayer_object_type": "payment"}
     for key in ("status", "resource_token", "created_at"):
         if key in payload:
             metadata[key] = payload[key]
     hosted_page = payload.get("hosted_page")
     if isinstance(hosted_page, dict) and isinstance(hosted_page.get("uri"), str):
         metadata["hosted_page_uri"] = hosted_page["uri"]
+    return metadata
+
+
+def payout_result(
+    payload: dict[str, Any],
+    *,
+    fallback_idempotency_key: str,
+    fallback_amount_minor: int | None = None,
+    fallback_currency: str = "GBP",
+) -> RailOperationResult:
+    metadata = payload.get("metadata")
+    metadata_dict = metadata if isinstance(metadata, dict) else {}
+    amount_minor = (
+        int(payload["amount_in_minor"])
+        if payload.get("amount_in_minor") is not None
+        else fallback_amount_minor
+    )
+    return RailOperationResult(
+        provider=ProviderName.TRUELAYER,
+        provider_object_id=str(payload["id"]),
+        idempotency_key=str(metadata_dict.get("idempotency_key") or fallback_idempotency_key),
+        state=map_payout_state(str(payload.get("status", ""))),
+        amount_minor=amount_minor,
+        currency=str(payload.get("currency", fallback_currency)).upper(),
+        provider_metadata=payout_metadata(payload),
+    )
+
+
+def payout_metadata(payload: dict[str, Any]) -> dict[str, Any]:
+    metadata: dict[str, Any] = {"truelayer_object_type": "payout"}
+    for key in ("status", "created_at", "executed_at", "failed_at", "failure_reason", "scheme_id"):
+        if key in payload:
+            metadata[key] = payload[key]
+    beneficiary = payload.get("beneficiary")
+    if isinstance(beneficiary, dict):
+        beneficiary_type = beneficiary.get("type")
+        if isinstance(beneficiary_type, str):
+            metadata["beneficiary_type"] = beneficiary_type
+        reference = beneficiary.get("reference")
+        if isinstance(reference, str):
+            metadata["beneficiary_reference"] = reference
     return metadata
 
 
@@ -422,6 +523,27 @@ def map_payment_state(status: str) -> SettlementState:
     if status in {"failed", "rejected", "revoked", "expired", "cancelled", "canceled"}:
         return SettlementState.FAILED
     return SettlementState.PROCESSING
+
+
+def map_payout_state(status: str) -> SettlementState:
+    if status in {"pending", "authorized", "authorizing", "submitted", "processing"}:
+        return SettlementState.PROCESSING
+    if status == "executed":
+        return SettlementState.SETTLED
+    if status in {"failed", "rejected", "cancelled", "canceled"}:
+        return SettlementState.FAILED
+    return SettlementState.PROCESSING
+
+
+def looks_like_payout_id(provider_object_id: str) -> bool:
+    return provider_object_id.startswith(("payout_", "pout_"))
+
+
+def webhook_provider_object_id(payload: dict[str, Any]) -> str:
+    event_type = str(payload["type"])
+    if event_type.startswith("payout_") or "payout_id" in payload:
+        return str(payload["payout_id"])
+    return str(payload["payment_id"])
 
 
 def header_value(headers: dict[str, str], name: str) -> str | None:

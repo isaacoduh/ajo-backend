@@ -75,6 +75,7 @@ class PayoutRequest:
     user_id: str
     amount_minor: int
     currency: str = "GBP"
+    beneficiary_type: str = "business_account"
 
 
 @dataclass(frozen=True)
