@@ -114,7 +114,12 @@ class TrueLayerRail:
             {"Authorization": f"Bearer {access_token}"},
         )
         response = await self._post_signed(path=TRUE_LAYER_PAYMENT_PATH, signed=signed)
-        return payment_result(response.payload, fallback_idempotency_key=request.idempotency_key)
+        return payment_result(
+            response.payload,
+            fallback_idempotency_key=request.idempotency_key,
+            fallback_amount_minor=request.amount_minor,
+            fallback_currency=request.currency,
+        )
 
     async def create_mandate(self, request: MandateRequest) -> RailOperationResult:
         _ = request
@@ -375,16 +380,23 @@ def payment_result(
     payload: dict[str, Any],
     *,
     fallback_idempotency_key: str,
+    fallback_amount_minor: int | None = None,
+    fallback_currency: str = "GBP",
 ) -> RailOperationResult:
     metadata = payload.get("metadata")
     metadata_dict = metadata if isinstance(metadata, dict) else {}
+    amount_minor = (
+        int(payload["amount_in_minor"])
+        if payload.get("amount_in_minor") is not None
+        else fallback_amount_minor
+    )
     return RailOperationResult(
         provider=ProviderName.TRUELAYER,
         provider_object_id=str(payload["id"]),
         idempotency_key=str(metadata_dict.get("idempotency_key") or fallback_idempotency_key),
         state=map_payment_state(str(payload.get("status", ""))),
-        amount_minor=int(payload["amount_in_minor"]) if payload.get("amount_in_minor") is not None else None,
-        currency=str(payload.get("currency", "GBP")).upper(),
+        amount_minor=amount_minor,
+        currency=str(payload.get("currency", fallback_currency)).upper(),
         provider_metadata=payment_metadata(payload),
     )
 

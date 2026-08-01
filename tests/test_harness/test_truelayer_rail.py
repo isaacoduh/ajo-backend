@@ -254,6 +254,45 @@ async def test_truelayer_topup_creates_hosted_payment_with_signed_body() -> None
     }
 
 
+@pytest.mark.asyncio
+async def test_truelayer_topup_uses_request_amount_when_create_response_omits_amount() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if str(request.url) == "https://auth.truelayer.test/connect/token":
+            return httpx.Response(200, json={"access_token": "tl-access-token"})
+        return httpx.Response(
+            201,
+            json={
+                "id": "pay_test_without_amount",
+                "status": "authorization_required",
+                "hosted_page": {"uri": "https://payment.truelayer.test/hosted/pay_without_amount"},
+                "metadata": {
+                    "idempotency_key": "tl-topup-without-amount",
+                    "ajo_flow": "topup",
+                    "user_id": "user-1",
+                },
+            },
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        rail = TrueLayerRail(
+            settings=truelayer_settings(),
+            http_client=client,
+            signer=fake_signer,
+        )
+        result = await rail.create_topup(
+            TopupRequest(
+                idempotency_key="tl-topup-without-amount",
+                user_id="user-1",
+                amount_minor=3000,
+                currency="GBP",
+            )
+        )
+
+    assert result.amount_minor == 3000
+    assert result.currency == "GBP"
+    assert result.state == SettlementState.INITIATED
+
+
 def test_truelayer_maps_payment_states() -> None:
     assert map_payment_state("authorization_required") == SettlementState.INITIATED
     assert map_payment_state("executed") == SettlementState.PROCESSING
